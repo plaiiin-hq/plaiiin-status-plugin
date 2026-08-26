@@ -151,9 +151,10 @@ The legacy `type:` + `url:`/`host:`/`port:` format is still parsed for backward 
 
 Probe definitions live in a three-layer system:
 
-### 1. Built-in catalog (`src/main/resources/catalog/`)
+### 1. Built-in catalog
 
-Shipped with the server, read-only. Contains definitions for standard probe types:
+Shipped inside the server, read-only — you cannot edit these, only install or
+override them. List what your server has with `GET /api/ide/probes`. Contains definitions for standard probe types:
 
 ```
 catalog/

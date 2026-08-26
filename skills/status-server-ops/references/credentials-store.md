@@ -93,13 +93,3 @@ Settings > Credentials page:
 export STATUS_CREDENTIALS_KEY="your-secret-key"
 ```
 
-Dev database path: `Status-Server/dev/credentials-dev.db`
-
-## Files
-
-- `credentials/CredentialData.java` — sealed interface + 6 typed records
-- `credentials/Credential.java` — wrapper record with metadata
-- `credentials/CredentialSummary.java` — list DTO (no secrets)
-- `credentials/CredentialEncryption.java` — AES-256-GCM + PBKDF2
-- `credentials/CredentialsDao.java` — SQLite DAO
-- `credentials/CredentialsController.java` — REST API

@@ -7,13 +7,18 @@ numbers — and it needs no frontend build, no widget registry, and no rebuild o
 It is also almost entirely unused: of ~45 shipped probes, **1** has one. If you want a board
 that looks deliberate, this is the surface with the most headroom.
 
-## The two files
+## The two parts
 
-```
-probes/<id>/infographic/
-  template.svg     the drawing, with id="…" on the parts that change
-  bindings.yml     which probe values drive which ids
-```
+An infographic is two documents attached to a probe:
+
+| Part | What it is |
+|---|---|
+| **the SVG** | The drawing, with `id="…"` on every element that should change |
+| **the bindings** | Which probe values drive which ids, and how |
+
+You read and write them over the API — `GET /api/ide/probe-svg?id=<probe>` and
+`POST /api/ide/probe-svg` with `{id, svg, svgDark}` — or edit them in the Probe IDE. Both
+need `STATUS_ADMIN` or `INFRA_ADMIN`.
 
 ## `template.svg`
 
