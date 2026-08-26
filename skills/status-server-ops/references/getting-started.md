@@ -169,7 +169,15 @@ Better than per-probe params because it applies estate-wide and lives in one pla
 
 ## 9. Verify before you believe it
 
-Every step above can fail silently. After the first save:
+**Dry-run the config before applying it** — writes nothing, and reports missed refs and
+phantom agents up front:
+
+```bash
+curl -s -X POST -H "X-API-Key: $STATUS_API_KEY" -H 'Content-Type: application/json' \
+     -d @infra.json "$STATUS_URL/api/infrastructure/config?dryRun=true"
+```
+
+Every step above can fail silently. After the save:
 
 ```bash
 K="X-API-Key: $STATUS_API_KEY"

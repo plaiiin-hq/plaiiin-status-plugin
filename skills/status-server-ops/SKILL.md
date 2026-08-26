@@ -117,11 +117,38 @@ All of it requires `STATUS_ADMIN` or `INFRA_ADMIN`. Humans can equally use the a
 > represent. Keep notes about your setup somewhere that survives a save, and prefer editing
 > the smallest thing you can rather than round-tripping a config you did not author.
 
-> ⚠️ **The save does not validate.** It will happily accept a config in which every project
-> `ref` misses and every probe binds to a nonexistent agent, and still report `"ok"`. The
-> response tells you the write succeeded, **not** that the result works. Verify afterwards —
-> see *Verifying* at the end. This is the single most important thing to know about this
-> endpoint.
+### ✅ Dry-run it first
+
+```bash
+curl -s -X POST -H "$K" -H 'Content-Type: application/json' \
+     -d @infra.json "$STATUS_URL/api/infrastructure/config?dryRun=true"
+```
+
+Writes nothing, reloads nothing, records no history — and answers the questions that
+otherwise only production can:
+
+```jsonc
+{
+  "status": "ok_with_warnings",
+  "dryRun": true,
+  "probes": { "wouldGenerate": 54 },
+  "refs":   { "resolved": 61, "missed": ["Public Site / Web / API -> Agents / app-01 / Web Reachabl"] },
+  "agents": { "bound": 12, "unknown": ["SSH -> agent 'app-03.example.com'"] },
+  "warnings": ["1 project ref(s) resolve to nothing and will render as empty nodes. …"]
+}
+```
+
+**Do this before every config change.** A missed ref and a phantom agent are traps 1 and 2,
+and this is the only way to see them without applying the change to a live board first.
+
+> ⚠️ **The save does not refuse a broken config.** It applies whatever you send. It now
+> *reports* what went wrong — the same `refs`/`agents`/`warnings` block as the dry run, with
+> `status: "ok_with_warnings"` — but it does not stop. **Read the response**; `"ok"` alone
+> means the write landed, not that the result works.
+>
+> On builds before 2026-08-27 the response was `"Configuration saved and reloaded"` and
+> nothing else, whatever the outcome. If that is all you get back, verify manually via
+> *Verifying* at the end.
 
 > 💡 **Older deployments:** before 2026-08-27 these lived at `/admin/infrastructure/api/config`
 > and were unreachable with an API key (a routing bug returned a 302 to the login form).

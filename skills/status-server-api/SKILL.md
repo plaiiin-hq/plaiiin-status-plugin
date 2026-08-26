@@ -96,8 +96,13 @@ ignore red.
 and records a history entry in one call — `200 {"status":"ok"}`, or `409`/`400` with
 `{"error": {"code", "message"}}`. Requires `STATUS_ADMIN` or `INFRA_ADMIN`.
 
-⚠️ It does **not validate**: a config whose refs all miss saves cleanly and reports `ok`.
-Re-read `/api/tree` afterwards. Details and the round-trip caveat: `status-server-ops`.
+Add `?dryRun=true` to get the same report **without writing anything** — refs resolved and
+missed, probes bound to agents that do not exist, how many probes the config would generate.
+Do that before every change.
+
+⚠️ A real save does not refuse a broken config; it applies it and reports the problems
+alongside `status: "ok_with_warnings"`. Read the response body, not just the status code.
+Details and the lossy round-trip caveat: `status-server-ops`.
 
 ## Probe authoring over the API
 
