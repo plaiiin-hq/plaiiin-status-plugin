@@ -118,19 +118,12 @@ code on every machine the board monitors.
 file and erases every comment in it. Edit the file, then trigger the catalog watcher. See
 `status-server-ops` → *Applying a change without a restart*.
 
-## Optional: the MCP server
+## MCP server — not currently distributed
 
-Status ships an MCP server (`mcp/status_server.py`, 15 tools) if you would rather have tools
-than curl. It reads `STATUS_URL` and `STATUS_API_KEY` from the environment.
-
-| Group | Tools |
-|---|---|
-| State | `get_system_status`, `get_service_tree`, `get_server_info`, `list_probes`, `get_probe_history`, `get_recent_events`, `get_untracked_issues` |
-| Incidents | `list_incidents`, `get_incident`, `create_incident`, `resolve_incident`, `add_incident_comment` |
-| Other | `list_drills`, `list_users`, `get_my_identity` |
-
-It is **read-only apart from incidents** — it deliberately does not expose probe authoring
-even though the REST API does. For authoring, use `/api/ide/*` directly.
+Status has an internal MCP server (15 tools: state, incidents, drills/users) built for its
+chat responder. It is **not part of this plugin and not currently shipped to customers**, and
+it is read-only apart from incidents. Everything below the *Setup* section works over plain
+HTTP, so nothing in this skill depends on it. Ask your Plaiiin contact if you want it.
 
 ## See also
 

@@ -49,21 +49,10 @@ A **302 to `/app/login`** does not mean a bad key — it usually means the path 
 `/api/**`, which is the only prefix the API-key filter is registered on. Check the path
 first.
 
-## 5. Optional — the MCP server
+## 5. MCP server — not currently distributed
 
-If you would rather have tools than curl, Status ships `mcp/status_server.py` (15 tools). It
-reads the same `STATUS_URL` and `STATUS_API_KEY`. Add it to your MCP config:
+Status has an internal MCP server (15 tools over the same REST API) built for its chat
+responder. It is **not part of this plugin and is not currently shipped to customers** — if
+you want tools rather than curl, ask your Plaiiin contact.
 
-```json
-{
-  "mcpServers": {
-    "status": {
-      "command": "python3",
-      "args": ["/path/to/status_server.py"],
-      "env": { "STATUS_URL": "https://status.example.com", "STATUS_API_KEY": "twk_…" }
-    }
-  }
-}
-```
-
-It is read-only apart from incidents; probe authoring stays on the REST API.
+Everything in `status-server-api` works over plain HTTP, so nothing here depends on it.
