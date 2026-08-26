@@ -32,6 +32,33 @@ Environment variables of the same name win if already set, so a one-off override
 If the file is absent **and** the variables are unset, that is the only time you should be
 asked for a key.
 
+### Getting a key
+
+| Route | How |
+|---|---|
+| **Admin UI** | Settings → **API keys** → *New key*. The raw key is shown **once** — copy it straight into the file above. |
+| **API** (needs an existing key) | `POST /api/user/api-keys` with `{"name":"…"}` |
+
+List or revoke yours with `GET /api/user/api-keys` and
+`POST /api/user/api-keys/{id}/revoke`.
+
+**A key inherits the roles of the user who minted it** — there is no per-key scoping. So the
+account you are signed in as when you click *New key* decides what the key can do:
+
+| Signed in as | Key can |
+|---|---|
+| an ordinary user | read state, read history, work with incidents |
+| `STATUS_ADMIN` / `INFRA_ADMIN` | all of the above **plus** `/api/ide/**` — writing probe scripts that execute on every monitored host, and writing config |
+
+Prefer a key minted by a non-admin account for anything ambient (dashboards, bots, a
+long-running assistant session). Reach for an admin key only while authoring, and revoke it
+after.
+
+⚠️ **If a key returns `401 {"error":"User not found"}`**, the key itself is fine — the account
+that owns it no longer resolves in the identity directory. That happens when the directory is
+re-imported and user ids change. Mint a fresh key as a current user; revoking and re-issuing
+against the old account will not help.
+
 ### ⚠️ The `/api/**` boundary — the confusing failure
 
 `ApiKeyAuthFilter` is registered **only** on `securityMatcher("/api/**")`. A key presented
