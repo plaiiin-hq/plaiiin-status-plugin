@@ -56,8 +56,27 @@ probes:
 `digitalocean-status`, `github-status`, `google-cloud-status`, `google-workspace-status`,
 `jira-status`, `npm-status`, `openai-status`, `reddit-status`).
 
-List what your server actually has — including any custom types — with
-`GET /api/infrastructure/types`.
+### 🚨 Check the type actually loaded
+
+`ServiceTypeCatalog` logs a load failure and carries on, so **a type that fails to parse is
+simply absent** — and a `type:` naming an absent type generates no probes, with no error. On
+the board that looks exactly like a service you never configured.
+
+Always confirm before trusting a type:
+
+```bash
+curl -s -H "X-API-Key: $STATUS_API_KEY" "$STATUS_URL/api/infrastructure/types" \
+  | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'types loaded')"
+```
+
+That number should match the count of types your server ships. If a `type:` you set does
+nothing, check this list first — before checking your config.
+
+Deployments built before **2026-08-27** shipped 22 types of which **7 never loaded**
+(`postgres`, `spring-boot`, `jenkins`, `grafana`, `github-actions`, `google-cloud-status`,
+`google-workspace-status`) — including `postgres`, so the obvious first thing to try silently
+did nothing. If your server reports 15, you are on such a build: upgrade, or write the probes
+by hand until you do.
 
 Custom types live beside the built-ins in the config path, so a type you write once is reusable
 across every service of that kind. **Write a type before you write the same probe twice.**

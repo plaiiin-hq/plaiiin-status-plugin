@@ -173,6 +173,11 @@ Custom types sit beside the built-ins and are reusable across every service of t
 **Write a type before you write the same probe twice.** Hand-written probes are the escape
 hatch, not the default. Full setup order: `references/getting-started.md`.
 
+🚨 **A type that fails to parse is silently absent**, and a `type:` naming an absent type
+generates nothing — no probes, no error, indistinguishable from a service you never
+configured. Confirm with `GET /api/infrastructure/types` before assuming your config is
+wrong. Builds before 2026-08-27 loaded only 15 of 22, `postgres` among the missing.
+
 ## Templated paths — one probe, N instances
 
 A `{var}` in an `output:` path matches any segment, and **every `{var}` introduces a level of
