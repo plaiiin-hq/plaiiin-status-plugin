@@ -180,6 +180,7 @@ curl -s -X POST -H "X-API-Key: $STATUS_API_KEY" -H 'Content-Type: application/js
 Every step above can fail silently. After the save:
 
 ```bash
+set -a && . ~/.plaiiin/status-server/env && set +a   # STATUS_URL + STATUS_API_KEY
 K="X-API-Key: $STATUS_API_KEY"
 curl -s -H "$K" "$STATUS_URL/api/tree"                    # do the refs resolve?
 curl -s -H "$K" "$STATUS_URL/api/probes/history/list"     # 🚨 no history = NEVER RAN

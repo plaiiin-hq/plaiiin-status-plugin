@@ -2,13 +2,20 @@
 
 ## 1. Point the skills at your server
 
+Put them in `~/.plaiiin/status-server/env` — the location both skills read, so no session ever
+has to ask you for a key:
+
 ```bash
-export STATUS_URL=https://status.example.com   # no trailing slash
-export STATUS_API_KEY=twk_…
+mkdir -p ~/.plaiiin/status-server && chmod 700 ~/.plaiiin/status-server
+cat > ~/.plaiiin/status-server/env <<'EOF'
+STATUS_URL=https://status.example.com   # no trailing slash
+STATUS_API_KEY=twk_…
+EOF
+chmod 600 ~/.plaiiin/status-server/env
 ```
 
-Put these in your shell profile, or in a `~/.config/status/env` you source, so they survive
-across sessions.
+Load it in a shell with `set -a && . ~/.plaiiin/status-server/env && set +a`. Exported
+variables of the same name take precedence, so a one-off override still works.
 
 ## 2. Mint an API key
 

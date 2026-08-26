@@ -1,6 +1,6 @@
 ---
 name: status-server-api
-description: Use when reading or driving a running Plaiiin Status server from Claude — checking what is currently red, reading the probe tree or a probe's history, opening/resolving/commenting on incidents, or authoring probes and their dashboard layouts (widgets, tiles) over the REST API. Covers X-API-Key auth, the /api/** boundary that makes wrong paths look like a login redirect, and the role gate on probe authoring.
+description: Use when reading or driving a running Plaiiin Status server from Claude — checking what is currently red, reading the probe tree or a probe's history, opening/resolving/commenting on incidents, or authoring probes and their dashboard layouts (widgets, tiles) over the REST API. Covers X-API-Key auth, the /api/** boundary that makes wrong paths look like a login redirect, and the role gate on probe authoring. Credentials live in ~/.plaiiin/status-server/env — read that before asking anyone for a key.
 ---
 
 # Driving a live Status board
@@ -8,18 +8,29 @@ description: Use when reading or driving a running Plaiiin Status server from Cl
 This skill is for talking to a **running** Status server. For modelling infrastructure and
 authoring probe definitions in config, see `status-server-ops`.
 
-## Setup
+## Credentials — set once, never asked again
+
+Both skills read `~/.plaiiin/status-server/env`. Put your server and key there and no session
+needs to ask you for them:
 
 ```bash
-export STATUS_URL=https://status.example.com
-export STATUS_API_KEY=twk_…          # Settings → API keys, or POST /api/user/api-keys
+mkdir -p ~/.plaiiin/status-server && chmod 700 ~/.plaiiin/status-server
+cat > ~/.plaiiin/status-server/env <<'EOF'
+STATUS_URL=https://status.example.com
+STATUS_API_KEY=twk_…
+EOF
+chmod 600 ~/.plaiiin/status-server/env
 ```
 
-Every call carries the key as a header:
+Load it in any shell:
 
 ```bash
-curl -s -H "X-API-Key: $STATUS_API_KEY" "$STATUS_URL/api/tree"
+set -a && . ~/.plaiiin/status-server/env && set +a
 ```
+
+Environment variables of the same name win if already set, so a one-off override still works.
+If the file is absent **and** the variables are unset, that is the only time you should be
+asked for a key.
 
 ### ⚠️ The `/api/**` boundary — the confusing failure
 

@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors.
+description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors. Credentials live in ~/.plaiiin/status-server/env — read that before asking anyone for a key.
 ---
 
 # Operating a Plaiiin Status server
@@ -19,12 +19,29 @@ host being monitored — that is the one exception, and it is a one-time step pe
 > 2. **Never restart the server to apply a change.** It drops every logged-in session, and it
 >    is never necessary — saving config reloads the scheduler in the same call.
 
-## Setup
+## Credentials — set once, never asked again
+
+Both skills read `~/.plaiiin/status-server/env`. Put your server and key there and no session
+needs to ask you for them:
 
 ```bash
-export STATUS_URL=https://status.example.com
-export STATUS_API_KEY=twk_…
+mkdir -p ~/.plaiiin/status-server && chmod 700 ~/.plaiiin/status-server
+cat > ~/.plaiiin/status-server/env <<'EOF'
+STATUS_URL=https://status.example.com
+STATUS_API_KEY=twk_…
+EOF
+chmod 600 ~/.plaiiin/status-server/env
 ```
+
+Load it in any shell:
+
+```bash
+set -a && . ~/.plaiiin/status-server/env && set +a
+```
+
+Environment variables of the same name win if already set, so a one-off override still works.
+If the file is absent **and** the variables are unset, that is the only time you should be
+asked for a key.
 
 ## Ask the server what it supports
 
@@ -92,6 +109,7 @@ policies — see `references/infrastructure-yml.md` for every field.
 Config is **fully scriptable**:
 
 ```bash
+set -a && . ~/.plaiiin/status-server/env && set +a   # STATUS_URL + STATUS_API_KEY
 K="X-API-Key: $STATUS_API_KEY"
 
 curl -s -H "$K" "$STATUS_URL/api/infrastructure/config" > infra.json   # read
@@ -386,6 +404,7 @@ tree-attached logs and `scriptResult` service discovery: `references/writing-pro
 All of it over the API. No shell, no log files.
 
 ```bash
+set -a && . ~/.plaiiin/status-server/env && set +a   # STATUS_URL + STATUS_API_KEY
 K="X-API-Key: $STATUS_API_KEY"
 
 # 1. anything not OK right now
