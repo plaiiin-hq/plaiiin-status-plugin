@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when modelling infrastructure, adding or changing probes, or designing what a probe SHOWS on a Plaiiin Status server — dashboard layout, tiles and widgets (gauge, chart, badge, uptime-strip, odometer and 28 more), project tabs, hosts, dependencies, sites/floor-plans, thresholds and agent policies. Also when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the probe catalog and check.js sandbox, the Probe IDE plate editor, and five wiring mistakes that fail as SILENCE rather than as errors.
+description: Use when modelling infrastructure, adding or changing probes, or designing what a probe SHOWS on a Plaiiin Status server — dashboard layout, tiles and widgets (gauge, chart, badge, uptime-strip, odometer and 28 more), project tabs, hosts, dependencies, sites/floor-plans, thresholds and agent policies. Also when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the probe catalog and check.js sandbox, the Probe IDE plate editor, and six wiring mistakes that fail as SILENCE rather than as errors.
 ---
 
 # Operating a Plaiiin Status server
@@ -33,7 +33,7 @@ Read these on demand — they are the authoritative detail, not summaries.
 |---|---|
 | `references/infrastructure-yml.md` | **Every top-level section**, field by field: `hosts`, `projects`, `dependencies`, `sites` (floor plans), `thresholds`, `defaults`, agent policies. |
 | `references/writing-probes.md` | The full probe-authoring guide: `probe.yml`, `check.js`, the sandbox APIs, `streamValues`, templated paths, actions, tree-attached logs, `scriptResult`, thresholds, worked examples. |
-| `references/widgets.md` | All 33 dashboard widgets and their fields, by category, plus tile spans. |
+| `references/widgets.md` | **Which widgets render where** — the probe card knows 10, the topology view 33, only 5 overlap. Fields per widget, tile spans. |
 | `references/probe-sandbox.md` | The sandbox contract and the full param-type table. |
 | `references/probes.md` | Probe kinds, local vs remote, how binding works. |
 | `references/credentials-store.md` | Credential types (`bearer`, `basic`, `header`, `oauth2`, `tls`, `ssh`) and wiring them into probes. |
@@ -128,7 +128,7 @@ expanded probe is plain `key: value` rows. With one, each value becomes a tile.
 ```yaml
 layout:
   - tile: 1x1
-    widget: gauge          # 33 widgets — see references/widgets.md
+    widget: gauge          # card-safe; see references/widgets.md
     path: usedPercent      # a stream path this probe emits
     label: Disk
     max: 100
@@ -159,25 +159,30 @@ a typo in `path` looks exactly like "this instance doesn't have that value".
 
 Both need `STATUS_ADMIN` or `INFRA_ADMIN` — see `status-server-api` for why that gate matters.
 
-### The widget vocabulary
+### ⚠️ The widget vocabulary — two renderers, different names
 
-`value` `odometer` `split-flap` `split-flap-board` `delta` · `gauge` `bar` `bars`
-`progress-circle` `fluid-tank` `thermometer` `vu-meter` `stacked-bars-tower` · `chart`
-`chart-billboard` `oscilloscope` `heatmap` `radar` · `badge` `uptime-strip` `flame` ·
-`text` `log` `ticker-tape` `matrix-rain` · `compass` `orbital` `hourglass` `cake`
-`paper-stack` · `tray` `node` `action`
+The same `layout:` block feeds two renderers that accept **different widget names**:
 
-Tile spans in use: `1x1` `1x2` `2x1` `2x2` `3x1` `3x2` `4x1` `4x3`.
+| Works in | Widgets |
+|---|---|
+| **Both** — default to these | `value` `gauge` `chart` `bar` `bars` |
+| **Probe card only** | `color` `grid` `image` `list` `multizone` |
+| **Topology view only** | `action` `badge` `cake` `chart-billboard` `compass` `delta` `flame` `fluid-tank` `heatmap` `hourglass` `log` `matrix-rain` `node` `odometer` `orbital` `oscilloscope` `paper-stack` `progress-circle` `radar` `split-flap` `split-flap-board` `stacked-bars-tower` `text` `thermometer` `ticker-tape` `tray` `uptime-strip` `vu-meter` |
+
+**The panel is 4 units wide** — a wider span is clamped. Sizes: `1x1` `2x1` `1x2` `2x2` `3x1`
+`3x2` `4x1` `4x2` (the catalog also uses `4x3`).
 
 Each widget takes its own fields beyond `path`/`label` — `chart` has
-`style: blocky|smooth|ridge`, `badge` has `shape: pill|hex|shield|stamp`, `action` has
-`style: button|switch|knob|slider|lever|slot-machine…`. **Full field list per widget:
-`references/widgets.md`.**
+`style: blocky|smooth|ridge`, `badge` has `shape: pill|hex|shield|stamp`. **Full field list
+per widget, and which renderer each belongs to: `references/widgets.md`.**
 
-For an operational board, prefer the widget that makes a bad number obvious: `gauge` or
-`progress-circle` for a bounded ratio, `uptime-strip` for pass/fail history, `badge` for a
-discrete state. The decorative ones (`matrix-rain`, `flame`, `cake`, `orbital`) are for wall
-displays.
+For an operational board, pick what makes a bad number obvious: `gauge` for a bounded ratio,
+`chart` where the trend is the story, `value` when the number speaks for itself. Note
+`uptime-strip` — the obvious pick for pass/fail history — is topology-only; on a card use a
+`chart` of a 0/1 stream instead.
+
+Only 11 of ~45 shipped probes define a `layout:` at all. Plain key/value rows are a fine
+default; add a layout when a probe emits enough values that rows stop being readable.
 
 ## The probe catalog
 
@@ -220,7 +225,7 @@ tree-attached logs and `scriptResult` service discovery: `references/writing-pro
 `POST /api/ide/test-on-agent` runs it on a real agent and returns an id to poll at
 `GET /api/ide/test-on-agent/{id}`. Always do the agent one — see trap 4.
 
-## 🚨 Five traps that fail as SILENCE
+## 🚨 Six traps that fail as SILENCE
 
 | # | Trap | Rule |
 |---|---|---|
@@ -228,7 +233,8 @@ tree-attached logs and `scriptResult` service discovery: `references/writing-pro
 | 2 | **A project `ref` that misses resolves to an empty node** — the resolver returns null silently. You get a blank card, not an error. | Cross-check every `ref` against the live `/api/tree`. Mind the spaces around the `/` separators. |
 | 3 | **`docker-services` refs use the CONTAINER name, not `<stack>/<service>`.** The `<stack>/<service>` prefix exists only for `streamValues`, `ctx.action` and `ctx.log.ref`. | Ref them as `Agents / <host> / Docker / <containerName>`. |
 | 4 | **The server has no JS sandbox** — 7 native checkers only. Any JS catalog probe run **server-side** degrades to `HTTP_HEALTH`. An `ssl-certificate` probe will report "HTTP 200" while checking no expiry whatsoever. | Name server-side probes for what they do — "Web Reachable", not "SSL Certificate". A real cert or Docker probe needs an **agent on the box**. |
-| 5 | **An agent running `AGENT_READONLY=true` refuses shell.** A `SCRIPT` probe needing a shell can only ever return "requires shell access" — a permanent red. | Never ship a red that cannot go green. It trains people to ignore red, which is the only thing a status board is for. |
+| 5 | **A widget the probe card does not know renders NOTHING.** `ProbeLayout.vue` ends its dispatch chain at `ImageWidget` with no fallback, so a tile naming a topology-only widget (`flame`, `odometer`, `uptime-strip`, …) produces an empty cell — no error, no warning, no log line. Same for a `path` the probe never emits. | Keep board tiles inside `value` `gauge` `chart` `bar` `bars` unless you deliberately want a card-only widget. See the vocabulary table above. |
+| 6 | **An agent running `AGENT_READONLY=true` refuses shell.** A `SCRIPT` probe needing a shell can only ever return "requires shell access" — a permanent red. | Never ship a red that cannot go green. It trains people to ignore red, which is the only thing a status board is for. |
 
 ## Verifying — do this, every time
 

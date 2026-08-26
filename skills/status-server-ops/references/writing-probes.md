@@ -508,35 +508,33 @@ layout:
 
 **Fields:**
 
-- `tile` — grid span. In use across the shipped catalog: `1x1`, `1x2`, `2x1`, `2x2`, `3x1`, `3x2`, `4x1`, `4x3`.
-- `widget` — renderer. **33 are registered**, not four. The registry is
-  `Status-Frontend/src/lib/plate/widgets/registry.ts` (`WIDGET_NAMES`) and the picker
-  grouping is `lib/plate/widgetCategories.ts`. By category:
+- `tile` — grid span, `<cols>x<rows>`. The panel is **4 units wide**; a span wider than that is
+  clamped. Canonical sizes are in `Status-Frontend/src/lib/plate/tiles.ts`; the shipped
+  catalog also uses `4x3`.
+- `widget` — renderer. **⚠️ There are two renderers, and they accept different widget names
+  from the same `layout:` block.**
 
-  | Category | Widgets |
+  | | Probe card (the board) | 3D topology view |
+  |---|---|---|
+  | Rendered by | `components/common/ProbeLayout.vue` | `lib/plate/widgets/` builders |
+  | Widget count | 10 | 33 |
+
+  | Works in | Widgets |
   |---|---|
-  | Numeric | `value` · `odometer` · `split-flap` · `split-flap-board` · `delta` |
-  | Gauges & meters | `gauge` · `bar` · `bars` · `progress-circle` · `fluid-tank` · `thermometer` · `vu-meter` · `stacked-bars-tower` |
-  | Charts | `chart` · `chart-billboard` · `oscilloscope` · `heatmap` · `radar` |
-  | Status | `badge` · `uptime-strip` · `flame` |
-  | Text | `text` · `log` · `ticker-tape` · `matrix-rain` |
-  | Spatial | `compass` · `orbital` · `hourglass` · `cake` · `paper-stack` |
-  | Grouping | `tray` (alias `plate`) · `node` · `action` |
+  | **Both** | `value` `gauge` `chart` `bar` `bars` |
+  | **Probe card only** | `color` `grid` `image` `list` `multizone` |
+  | **Topology view only** | `action` `badge` `cake` `chart-billboard` `compass` `delta` `flame` `fluid-tank` `heatmap` `hourglass` `log` `matrix-rain` `node` `odometer` `orbital` `oscilloscope` `paper-stack` `progress-circle` `radar` `split-flap` `split-flap-board` `stacked-bars-tower` `text` `thermometer` `ticker-tape` `tray` `uptime-strip` `vu-meter` |
 
-  `state-dot` has a builder but is deliberately absent from the picker. `color`,
-  `multizone`, `image` and `slider` tiles are rendered by dedicated frontend components
-  rather than plate builders, which is why they do not appear in `WIDGET_NAMES`.
+  🚨 **A widget the probe card doesn't know renders NOTHING — silently.** `ProbeLayout.vue`
+  ends its `v-else-if` chain at `ImageWidget` with no fallback, so a tile naming `flame` or
+  `odometer` produces an empty cell with no error, no warning, no log line. If a probe's
+  tiles are for the board people actually look at, **stay inside the five that work in both**
+  unless you specifically want a card-only widget.
 
-  Each widget takes its own fields beyond `path`/`label` — e.g. `chart` has
-  `style: blocky|smooth|ridge`, `badge` has `shape: pill|hex|shield|stamp`, `action` has
-  `style: button|switch|knob|slider|lever|slot-machine…`. Per-widget field specs live in
-  `lib/plate/widgets/schemas/<widget>.ts`.
-- `path` — single stream path (may contain `{var}`).
-- `paths` — glob pattern selecting multiple paths (for widgets like `multizone`).
-- `label` / `max` / `i18n` — widget config.
-- `group` — binds the tile to a `{var}` expansion. Each concrete instance matching the group pattern gets its own tile grid. Omit `group` for root-level summary tiles.
-
-Tiles whose `path` wasn't emitted by the probe are skipped automatically — so a single layout can serve heterogeneous instance types (color/white/strip/matrix lamps), with type-specific tiles activating only where the data exists.
+  The 33-name registry is `lib/plate/widgets/registry.ts` (`WIDGET_NAMES`), grouped for the
+  picker in `widgetCategories.ts`, with per-widget field specs in `schemas/<widget>.ts`.
+  `demo-widgets` exercises them — note its own description says it is for verifying the
+  **topology view** pipeline.
 
 ### scriptResult (for service discovery)
 
