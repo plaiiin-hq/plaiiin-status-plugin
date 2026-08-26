@@ -17,6 +17,25 @@ check. This skill covers authoring that declaration and getting changes live.
 > 2. **Never restart the container to apply a config change.** It drops every logged-in
 >    session and everyone has to sign in again. Use the file-watcher instead.
 
+## Reference files
+
+Read these on demand — they are the authoritative detail, not summaries.
+
+| File | Covers |
+|---|---|
+| `references/infrastructure-yml.md` | **Every top-level section**, field by field: `hosts`, `projects`, `dependencies`, `sites` (floor plans), `thresholds`, `defaults`, agent policies. |
+| `references/writing-probes.md` | The full probe-authoring guide: `probe.yml`, `check.js`, the sandbox APIs, `streamValues`, templated paths, actions, tree-attached logs, `scriptResult`, thresholds, worked examples. |
+| `references/widgets.md` | All 33 dashboard widgets and their fields, by category, plus tile spans. |
+| `references/probe-sandbox.md` | The sandbox contract and the full param-type table. |
+| `references/probes.md` | Probe kinds, local vs remote, how binding works. |
+| `references/credentials-store.md` | Credential types (`bearer`, `basic`, `header`, `oauth2`, `tls`, `ssh`) and wiring them into probes. |
+| `references/icons.md` · `references/notifications.md` | Icon set; Telegram/webhook notification config. |
+| `references/probe-active-folder.md` · `references/probe-vs-command.md` | Active-folder mechanics; when to write a command instead of a probe. |
+| `references/infrastructure-model.md` | The model in prose — hosts, host-agents, agent security, agent policies. |
+
+⚠️ `writing-probes.md` names only 4 widgets (`value`, `gauge`, `color`, `multizone`). That
+list is **stale** — `references/widgets.md` is the current registry.
+
 ## The model
 
 ```
@@ -134,14 +153,23 @@ curl -X POST -H "X-API-Key: $STATUS_API_KEY" -H 'Content-Type: application/json'
 ## The probe catalog
 
 Each catalog probe is a directory under `tower-config/probes/<id>/` holding `probe.yml`
-(metadata, params, outputs, dashboard layout) and `check.js` (the check itself). ~40 ship
-in the box, covering HTTP/TCP/SSL, Docker, host metrics, databases (Postgres, MySQL, Redis,
+(metadata, typed params, declared outputs, dashboard layout) and `check.js` (the check).
+~40 ship in the box: HTTP/TCP/SSL, Docker, host metrics, databases (Postgres, MySQL, Redis,
 Elasticsearch, RabbitMQ), CI (Jenkins, GitHub Actions), and a long tail of third-party
 `*-status` pages.
 
-`probe.yml` declares typed **params** (`url`, `int`, `string`, `credential`), the **output**
-paths it publishes, and the tile **layout** those paths render as. `check.js` returns a
-state plus a `streamValues` map keyed by those output paths:
+**Param types:** `url` · `hostname` · `port` · `string` · `text` · `int` · `number` ·
+`boolean` · `select` · `duration` · `percent` · `bytes` · `timestamp` · `color` · `location` ·
+`state` · `label` · `group` · `action` · `credential`
+
+**Sandbox APIs** available to `check.js`: `ctx.http.get` · `ctx.tcp.connect` ·
+`ctx.socket.http` (Unix sockets) · `ctx.shell.run` · `ctx.exec` · `ctx.action.add` ·
+`ctx.log` · `ctx.host` · `ctx.util` · `ctx.params`
+
+**States:** `OK` · `WARNING` · `ERROR` · `UNKNOWN` — note it is `WARNING`, not `WARN`.
+
+A check returns a state, a message, and a `streamValues` map keyed by the output paths
+`probe.yml` declares:
 
 ```js
 function check(ctx) {
@@ -150,7 +178,6 @@ function check(ctx) {
   return {
     state: state,
     message: 'HTTP ' + res.status,
-    responseMs: res.elapsed,
     streamValues: {
       '':         { state: state, value: '' + res.elapsed },  // primary — drives the row sparkline
       statusCode: { state: state, value: '' + res.status },
@@ -161,10 +188,11 @@ function check(ctx) {
 ```
 
 The `''` (empty path) entry is the **primary** value and drives the inline sparkline on the
-probe row. Omit it and the row renders flat.
+probe row. Omit it and the row renders flat. `http-endpoint` records `responseMs`, so it is a
+genuine latency probe rather than up/down — give every public endpoint one.
 
-`http-endpoint` records `responseMs` from the checker, so it is a genuine **latency** probe
-rather than up/down. Give every public endpoint one.
+Full contract, including templated `{var}` paths, actions, tree-attached logs and
+`scriptResult` service discovery: `references/writing-probes.md`.
 
 ## 🚨 Five traps that fail as SILENCE
 

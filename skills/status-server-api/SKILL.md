@@ -30,6 +30,15 @@ down server. It is neither: it is the wrong path.
 
 If a call redirects to `/app/login`, check the path before you check the key.
 
+## Reference files
+
+| File | Covers |
+|---|---|
+| `references/api-endpoints.md` | The endpoint reference — paths, params, response shapes. |
+| `references/endpoints.md` | The wider surface, including admin and agent routes. |
+
+The tables below are the working subset; the references are authoritative.
+
 ## Reading state
 
 | Endpoint | Use |
