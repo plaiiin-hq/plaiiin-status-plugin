@@ -3,5 +3,6 @@
   "description": "Operate a Plaiiin Status server from Claude. `status-server-ops` covers the infrastructure model, probe authoring and the wiring traps that fail as silence; `status-server-api` drives a live board over its REST API (tree, history, incidents, probe authoring). Targets any deployment via STATUS_URL + STATUS_API_KEY.",
   "author": {
     "name": "Plaiiin"
-  }
+  },
+  "license": "Apache-2.0"
 }

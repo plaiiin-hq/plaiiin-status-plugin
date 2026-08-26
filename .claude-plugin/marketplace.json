@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "plaiiin-status",
-  "description": "Plaiiin Status tooling for Claude Code — model your infrastructure, author probes, and drive a running Status board over its REST API.",
+  "description": "Plaiiin Status tooling for Claude Code \u2014 model your infrastructure, author probes, and drive a running Status board over its REST API.",
   "owner": {
     "name": "Plaiiin"
   },
@@ -14,7 +14,8 @@
       },
       "category": "monitoring",
       "source": "./",
-      "homepage": "https://github.com/plaiiin-hq/plaiiin-status-plugin"
+      "homepage": "https://github.com/plaiiin-hq/plaiiin-status-plugin",
+      "license": "Apache-2.0"
     }
   ]
 }

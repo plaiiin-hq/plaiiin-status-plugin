@@ -58,5 +58,7 @@ pull manually:
 
 ## License
 
-© Plaiiin. All rights reserved. These skills are published for use with Plaiiin Status;
-no license to the Status source is granted or implied.
+[Apache-2.0](LICENSE) — © 2026 Plaiiin.
+
+This licenses **these skills**, not Plaiiin Status itself. No rights to the Status source,
+binaries or trademarks are granted or implied.
