@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "plaiiin-status",
+  "description": "Plaiiin Status tooling for Claude Code — model your infrastructure, author probes, and drive a running Status board over its REST API.",
+  "owner": {
+    "name": "Plaiiin"
+  },
+  "plugins": [
+    {
+      "name": "plaiiin-status",
+      "description": "Operate a Plaiiin Status server: infrastructure-first monitoring config, probe authoring, and live triage over the REST API.",
+      "author": {
+        "name": "Plaiiin"
+      },
+      "category": "monitoring",
+      "source": "./",
+      "homepage": "https://github.com/plaiiin-hq/plaiiin-status-plugin"
+    }
+  ]
+}
