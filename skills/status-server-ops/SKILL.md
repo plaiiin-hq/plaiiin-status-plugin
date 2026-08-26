@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors. Credentials live in ~/.plaiiin/status-server/env — read that before asking anyone for a key.
+description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, finding and removing abandoned history data, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors. Credentials live in ~/.plaiiin/status-server/env — read that before asking anyone for a key.
 ---
 
 # Operating a Plaiiin Status server
@@ -434,6 +434,38 @@ empty. The count is redundant anyway: the children are right there.
 
 Same rule for anything else that moves — a timestamp, a version, a percentage, a hostname
 that might be renamed. Put it in the value or the message, never in the name.
+
+## Storage — finding and removing abandoned history
+
+Every probe stream gets its own history series, and they accumulate. Series belonging to
+nothing are easy to create by accident: rename a probe, or name a group node after something
+that changes, and the old series is orphaned forever.
+
+```bash
+# what is abandoned?
+curl -s -H "$K" "$STATUS_URL/api/admin/storage/stale?days=30"
+
+# remove it — DRY RUN by default, returns the same report either way
+curl -s -X POST -H "$K" "$STATUS_URL/api/admin/storage/cleanup?days=30&dryRun=false"
+```
+
+```jsonc
+{ "olderThanDays": 30, "staleCount": 162, "staleBytes": 484702208,
+  "totalSeries": 897, "totalBytes": 3203792896, "dryRun": true, "deleted": 0,
+  "series": [ { "name": "…", "bytes": 12478464, "lastWritten": "…", "ageDays": 137 } ] }
+```
+
+**Stale means two things at once**: nothing has written to the series for `days`, **and** no
+scheduled probe claims it. Either test alone is wrong — probes publish runtime children that
+no config declares (a node per container, per route) and those are live; and a probe on a long
+interval is quiet, not abandoned.
+
+The same control is in the admin UI under **Storage** — set a day threshold, *Scan*, then
+delete. `GET /api/admin/storage` lists every series with its size if you want to prune by hand
+instead; `POST /api/admin/storage/delete` removes named ones.
+
+Cleanup requires `STATUS_ADMIN` or `INFRA_ADMIN`, and **is not reversible** — take a copy of
+the history directory first if the data might matter.
 
 ## 🚨 Six traps that fail as SILENCE
 
