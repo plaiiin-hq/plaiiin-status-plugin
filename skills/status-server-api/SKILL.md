@@ -1,6 +1,6 @@
 ---
 name: status-server-api
-description: Use when reading or driving a running Plaiiin Status server from Claude — checking what is currently red, reading the probe tree or a probe's history, opening/resolving/commenting on incidents, or authoring probes over the REST API. Covers X-API-Key auth, the /api/** boundary that makes wrong paths look like a login redirect, and the role gate on probe authoring.
+description: Use when reading or driving a running Plaiiin Status server from Claude — checking what is currently red, reading the probe tree or a probe's history, opening/resolving/commenting on incidents, or authoring probes and their dashboard layouts (widgets, tiles) over the REST API. Covers X-API-Key auth, the /api/** boundary that makes wrong paths look like a login redirect, and the role gate on probe authoring.
 ---
 
 # Driving a live Status board
@@ -99,6 +99,11 @@ The Probe IDE's backend is fully scriptable under `/api/ide/*`:
 | `GET/POST /api/ide/probe-bindings` | Which hosts a probe is bound to. |
 | `GET/POST /api/ide/probe-svg` | The probe's infographic. |
 | `GET/POST /api/ide/command-*` | The same surface for agent commands. |
+
+To change what a probe **displays** rather than what it checks, edit the `layout:` block in
+its definition: `GET /api/ide/probe-definition?id=<probe>` → edit → `POST` it back. The widget
+vocabulary and each widget's fields are in the `status-server-ops` skill
+(`references/widgets.md`).
 
 **Always `test-on-agent` before `probe-save`.** A script that passes `test` server-side can
 still fail on an agent — the server has no JS sandbox and silently degrades unsandboxed

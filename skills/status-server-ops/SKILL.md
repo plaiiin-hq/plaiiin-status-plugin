@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when modelling infrastructure, adding or changing probes, wiring project tabs, or debugging a probe on a Plaiiin Status server — especially when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml, the probe catalog, applying config without dropping sessions, and five wiring mistakes that fail as SILENCE rather than as errors.
+description: Use when modelling infrastructure, adding or changing probes, or designing what a probe SHOWS on a Plaiiin Status server — dashboard layout, tiles and widgets (gauge, chart, badge, uptime-strip, odometer and 28 more), project tabs, hosts, dependencies, sites/floor-plans, thresholds and agent policies. Also when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the probe catalog and check.js sandbox, the Probe IDE plate editor, applying config without dropping sessions, and five wiring mistakes that fail as SILENCE rather than as errors.
 ---
 
 # Operating a Plaiiin Status server
@@ -190,6 +190,64 @@ genuine latency probe rather than up/down — give every public endpoint one.
 
 Full contract, including templated `{var}` paths, actions, tree-attached logs and
 `scriptResult` service discovery: `references/writing-probes.md`.
+
+## Dashboards — designing what a probe SHOWS
+
+A probe's **`layout:`** block in `probe.yml` decides how its values render. Without one, an
+expanded probe is plain `key: value` rows. With one, each value becomes a tile.
+
+```yaml
+layout:
+  - tile: 1x1
+    widget: gauge          # 33 widgets — see references/widgets.md
+    path: usedPercent      # a stream path this probe emits
+    label: Disk
+    max: 100
+  - tile: 2x1
+    widget: chart
+    path: responseMs
+    label: Response Time
+    group: "{host}"        # bind to a {var} expansion; omit for root-level summary tiles
+```
+
+**Three rules that decide whether a tile appears at all:**
+
+| Rule | Consequence |
+|---|---|
+| `path` must be a path the probe actually emits in `streamValues` | A tile whose path was never emitted is **skipped silently** — no error, no empty tile |
+| The `''` (empty) path is the **primary** value | It drives the inline sparkline on the probe row; omit it and the row renders flat |
+| `group` binds a tile to a `{var}` expansion | Each concrete instance gets its own tile grid. Root-level summary tiles must omit `group` |
+
+That skip-silently rule is deliberate — it lets one layout serve heterogeneous instances
+(colour vs white lamps, disks that report SMART vs those that don't). It also means a typo
+in `path` looks exactly like "this instance doesn't have that value".
+
+### Two ways to edit a layout
+
+| Route | How |
+|---|---|
+| **Probe IDE** (`/ide`) | The plate editor: pick a widget from the category strip, drop it on the grid, fill its typed fields. This is the intended path for a human. |
+| **API** | `GET /api/ide/probe-definition?id=<probe>` → edit the YAML → `POST /api/ide/probe-definition` with `{id, definition}`. `POST /api/ide/probe-save` writes `check.js`; `POST /api/ide/probe-svg` writes the infographic. Requires `STATUS_ADMIN` or `INFRA_ADMIN` — see `status-server-api`. |
+
+### The widget vocabulary, in one line each
+
+`value` `odometer` `split-flap` `split-flap-board` `delta` · `gauge` `bar` `bars`
+`progress-circle` `fluid-tank` `thermometer` `vu-meter` `stacked-bars-tower` · `chart`
+`chart-billboard` `oscilloscope` `heatmap` `radar` · `badge` `uptime-strip` `flame` ·
+`text` `log` `ticker-tape` `matrix-rain` · `compass` `orbital` `hourglass` `cake`
+`paper-stack` · `tray` `node` `action`
+
+Tile spans in use: `1x1` `1x2` `2x1` `2x2` `3x1` `3x2` `4x1` `4x3`.
+
+Each widget takes its own fields beyond `path`/`label` — `chart` has
+`style: blocky|smooth|ridge`, `badge` has `shape: pill|hex|shield|stamp`, `action` has
+`style: button|switch|knob|slider|lever|slot-machine…`. **Full field list per widget:
+`references/widgets.md`.**
+
+For an operational board, prefer the widget that makes a bad number obvious: `gauge` or
+`progress-circle` for a bounded ratio, `uptime-strip` for pass/fail history, `badge` for a
+discrete state. The decorative ones (`matrix-rain`, `flame`, `cake`, `orbital`) are for wall
+displays.
 
 ## 🚨 Five traps that fail as SILENCE
 
