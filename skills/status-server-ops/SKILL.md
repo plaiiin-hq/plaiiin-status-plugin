@@ -1,13 +1,14 @@
 ---
 name: status-server-ops
-description: Use when modelling infrastructure, adding or changing probes, or designing what a probe SHOWS on a Plaiiin Status server — dashboard layout, tiles and widgets (gauge, chart, badge, uptime-strip, odometer and 28 more), project tabs, hosts, dependencies, sites/floor-plans, thresholds and agent policies. Also when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the probe catalog and check.js sandbox, the Probe IDE plate editor, and six wiring mistakes that fail as SILENCE rather than as errors.
+description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors.
 ---
 
 # Operating a Plaiiin Status server
 
 Status is infrastructure-first: you declare what you have, and Status works out what to
 check. Everything here is done over the **API or the admin UI** — you never need shell access
-to the server, and you never restart it.
+to the Status server, and you never restart it. (Installing an *agent* does need shell on the
+host being monitored — that is the one exception, and it is a one-time step per machine.)
 
 > **Two rules dominate everything below.**
 >
@@ -31,13 +32,16 @@ Read these on demand — they are the authoritative detail, not summaries.
 
 | File | Covers |
 |---|---|
+| `references/getting-started.md` | **Start here for a new board.** The right setup order, service types, agent approval, first probes, thresholds. |
+| `references/infographics.md` | Custom SVG probe cards — `template.svg` + `bindings.yml`, the full binding vocabulary. |
 | `references/infrastructure-yml.md` | **Every top-level section**, field by field: `hosts`, `projects`, `dependencies`, `sites` (floor plans), `thresholds`, `defaults`, agent policies. |
 | `references/writing-probes.md` | The full probe-authoring guide: `probe.yml`, `check.js`, the sandbox APIs, `streamValues`, templated paths, actions, tree-attached logs, `scriptResult`, thresholds, worked examples. |
 | `references/widgets.md` | **Which widgets render where** — the probe card knows 10, the topology view 33, only 5 overlap. Fields per widget, tile spans. |
 | `references/probe-sandbox.md` | The sandbox contract and the full param-type table. |
 | `references/probes.md` | Probe kinds, local vs remote, how binding works. |
 | `references/credentials-store.md` | Credential types (`bearer`, `basic`, `header`, `oauth2`, `tls`, `ssh`) and wiring them into probes. |
-| `references/icons.md` · `references/notifications.md` | Icon set; Telegram/webhook notification config. |
+| `references/notifications.md` | **Alerting** — Telegram bot, webhooks, routing. Read before assuming a red reaches anyone. |
+| `references/icons.md` | The icon set for hosts, apps, services and types. |
 | `references/probe-active-folder.md` · `references/probe-vs-command.md` | Active-folder mechanics; when to write a command instead of a probe. |
 | `references/infrastructure-model.md` | The model in prose — hosts, host-agents, agent security, agent policies. |
 
@@ -120,6 +124,68 @@ curl -X POST -H "X-API-Key: $STATUS_API_KEY" -H 'Content-Type: application/json'
   "$STATUS_URL/api/admin/storage/delete"     # -> {"deleted":1}
 ```
 
+## Service types — let Status write the probes
+
+**This is the product's premise, and the thing most setups skip.** Put a `type:` on a service
+and its probes are generated for you:
+
+```yaml
+services:
+  - name: Database
+    type: postgres
+    vars: { port: 5432 }        # substituted into the type's ${port} placeholders
+```
+
+**22 built-in types** ship — `postgres` `traefik` `keycloak` `grafana` `jenkins`
+`spring-boot` `github-actions` `dockerhub` `statuspage` `vercel-status`, plus third-party
+status pages (`anthropic-status`, `cloudflare-status`, `github-status`, `jira-status`,
+`openai-status`, …). List what a server actually has with `GET /api/infrastructure/types`.
+
+Custom types sit beside the built-ins and are reusable across every service of that kind.
+**Write a type before you write the same probe twice.** Hand-written probes are the escape
+hatch, not the default. Full setup order: `references/getting-started.md`.
+
+## Templated paths — one probe, N instances
+
+A `{var}` in an `output:` path matches any segment, and **every `{var}` introduces a level of
+the tree**:
+
+```yaml
+output:
+  - path: "{host}/{container}"          type: group   label: "{container}"
+  - path: "{host}/{container}/cpu"      type: percent label: CPU
+```
+
+`check.js` emits the concrete paths; the captured values are referenceable in `label`, `i18n`
+and in layout `group:` bindings. This is how one probe covers every container, disk or light
+without listing them.
+
+⚠️ **A `/` inside a name must be escaped `\\/`** — an unescaped mount point like
+`/var/lib` silently becomes extra tree levels instead of one node.
+
+## Actions — buttons on the board
+
+A probe can attach operator actions to a stream path: Restart, Turn On, Flush Cache. They
+render inline in the tree next to the thing they act on, and they can take typed parameters
+with real input widgets.
+
+```yaml
+output:
+  - path: "{host}/{container}/restart"
+    type: action
+    label: Restart
+
+  - path: "{light}/setColor"
+    type: action
+    label: Set Color
+    params:
+      - { name: hue, type: number, label: Hue, min: 0, max: 360, widget: hue-slider }
+```
+
+Declare it in `output:` with `type: action`, register it in `check.js` with `ctx.action.add`,
+and handle the invocation. This is what turns a read-only board into a control panel — see
+*Actions* in `references/writing-probes.md` for the three-part contract.
+
 ## Dashboards — designing what a probe SHOWS
 
 A probe's **`layout:`** block in `probe.yml` decides how its values render. Without one, an
@@ -183,6 +249,14 @@ For an operational board, pick what makes a bad number obvious: `gauge` for a bo
 
 Only 11 of ~45 shipped probes define a `layout:` at all. Plain key/value rows are a fine
 default; add a layout when a probe emits enough values that rows stop being readable.
+
+### Or draw the card yourself
+
+For a designed, single-purpose card — a bar, a needle, a fill level, anything the widget set
+cannot draw — use an **infographic**: `template.svg` with `id`s on the live parts, plus a
+`bindings.yml` mapping values onto them via `map` / `scale` / `threshold`. No build, no
+registry, live over `POST /api/ide/probe-svg`. Only 1 of ~45 shipped probes uses this, so it
+is where the headroom is. Full vocabulary: `references/infographics.md`.
 
 ## The probe catalog
 
