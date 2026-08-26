@@ -415,6 +415,26 @@ tree-attached logs and `scriptResult` service discovery: `references/writing-pro
 `POST /api/ide/test-on-agent` runs it on a real agent and returns an id to poll at
 `GET /api/ide/test-on-agent/{id}`. Always do the agent one — see trap 4.
 
+### 🚨 Never put a changing value in a node name
+
+A node's **name is its identity** — history is keyed by the full path. So a group named after
+its own contents starts a brand-new history series every time that content count changes:
+
+```js
+// ✗ forks history on every added router
+services.push({ name: 'HTTP Routers (' + routers.length + ')', probes: p })
+
+// ✓ stable identity
+services.push({ name: 'HTTP Routers', probes: p })
+```
+
+The orphaned series are the small cost. The real one is that **a chart can never show more
+than the period since the count last changed** — add a container and the graph resets to
+empty. The count is redundant anyway: the children are right there.
+
+Same rule for anything else that moves — a timestamp, a version, a percentage, a hostname
+that might be renamed. Put it in the value or the message, never in the name.
+
 ## 🚨 Six traps that fail as SILENCE
 
 | # | Trap | Rule |
