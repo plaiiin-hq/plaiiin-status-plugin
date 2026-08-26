@@ -33,9 +33,6 @@ Read these on demand — they are the authoritative detail, not summaries.
 | `references/probe-active-folder.md` · `references/probe-vs-command.md` | Active-folder mechanics; when to write a command instead of a probe. |
 | `references/infrastructure-model.md` | The model in prose — hosts, host-agents, agent security, agent policies. |
 
-⚠️ `writing-probes.md` names only 4 widgets (`value`, `gauge`, `color`, `multizone`). That
-list is **stale** — `references/widgets.md` is the current registry.
-
 ## The model
 
 ```

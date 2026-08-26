@@ -508,8 +508,29 @@ layout:
 
 **Fields:**
 
-- `tile` — grid span (`1x1`, `2x1`, `4x1`, `2x2`).
-- `widget` — renderer. Built-in: `value` (formatted text), `gauge` (0–max dial), `color` (swatch), `multizone` (segmented strip of color swatches).
+- `tile` — grid span. In use across the shipped catalog: `1x1`, `1x2`, `2x1`, `2x2`, `3x1`, `3x2`, `4x1`, `4x3`.
+- `widget` — renderer. **33 are registered**, not four. The registry is
+  `Status-Frontend/src/lib/plate/widgets/registry.ts` (`WIDGET_NAMES`) and the picker
+  grouping is `lib/plate/widgetCategories.ts`. By category:
+
+  | Category | Widgets |
+  |---|---|
+  | Numeric | `value` · `odometer` · `split-flap` · `split-flap-board` · `delta` |
+  | Gauges & meters | `gauge` · `bar` · `bars` · `progress-circle` · `fluid-tank` · `thermometer` · `vu-meter` · `stacked-bars-tower` |
+  | Charts | `chart` · `chart-billboard` · `oscilloscope` · `heatmap` · `radar` |
+  | Status | `badge` · `uptime-strip` · `flame` |
+  | Text | `text` · `log` · `ticker-tape` · `matrix-rain` |
+  | Spatial | `compass` · `orbital` · `hourglass` · `cake` · `paper-stack` |
+  | Grouping | `tray` (alias `plate`) · `node` · `action` |
+
+  `state-dot` has a builder but is deliberately absent from the picker. `color`,
+  `multizone`, `image` and `slider` tiles are rendered by dedicated frontend components
+  rather than plate builders, which is why they do not appear in `WIDGET_NAMES`.
+
+  Each widget takes its own fields beyond `path`/`label` — e.g. `chart` has
+  `style: blocky|smooth|ridge`, `badge` has `shape: pill|hex|shield|stamp`, `action` has
+  `style: button|switch|knob|slider|lever|slot-machine…`. Per-widget field specs live in
+  `lib/plate/widgets/schemas/<widget>.ts`.
 - `path` — single stream path (may contain `{var}`).
 - `paths` — glob pattern selecting multiple paths (for widgets like `multizone`).
 - `label` / `max` / `i18n` — widget config.

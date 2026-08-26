@@ -3,9 +3,8 @@
 A probe's `layout:` block renders its stream paths as a grid of tiles. Each tile names a
 `widget`. This is the complete registry as shipped.
 
-> ⚠️ `writing-probes.md` → *Dashboard layout (tiles)* says the built-ins are `value`, `gauge`,
-> `color` and `multizone`. **That list is stale** — there are 33 picker widgets plus two
-> internal ones. Use this file for the vocabulary and that one for how `layout:` works.
+`writing-probes.md` → *Dashboard layout (tiles)* covers how `layout:` works and lists the
+same 33 widgets by category. This file adds each widget's configurable fields.
 
 ## Tile shape
 
