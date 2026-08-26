@@ -22,11 +22,6 @@ Status uses distinct icons for different entity types across web, iOS, and watch
 
 ## Web Components
 
-- `ServerIcon.vue` — wraps Lucide `Server`, accepts `state` prop
-- `AgentIcon.vue` — wraps Lucide `Cpu`, accepts `state` prop
-- `StatusDot.vue` — 8px colored circle for probes/leaf nodes
-- `StatusBadge.vue` — labeled badge (`OK`, `ERROR`, etc.)
-
 Library: [lucide-vue-next](https://lucide.dev) (tree-shakeable, only imports used icons).
 
 ## iOS Components

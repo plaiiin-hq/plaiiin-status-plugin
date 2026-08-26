@@ -509,14 +509,14 @@ layout:
 **Fields:**
 
 - `tile` — grid span, `<cols>x<rows>`. The panel is **4 units wide**; a span wider than that is
-  clamped. Canonical sizes are in `Status-Frontend/src/lib/plate/tiles.ts`; the shipped
+  clamped. Canonical sizes: `1x1` `2x1` `1x2` `2x2` `3x1` `3x2` `4x1` `4x2`; the shipped
   catalog also uses `4x3`.
 - `widget` — renderer. **⚠️ There are two renderers, and they accept different widget names
   from the same `layout:` block.**
 
   | | Probe card (the board) | 3D topology view |
   |---|---|---|
-  | Rendered by | `components/common/ProbeLayout.vue` | `lib/plate/widgets/` builders |
+  | Renders | the board people look at | the plate / topology visualisation |
   | Widget count | 10 | 33 |
 
   | Works in | Widgets |
@@ -525,16 +525,15 @@ layout:
   | **Probe card only** | `color` `grid` `image` `list` `multizone` |
   | **Topology view only** | `action` `badge` `cake` `chart-billboard` `compass` `delta` `flame` `fluid-tank` `heatmap` `hourglass` `log` `matrix-rain` `node` `odometer` `orbital` `oscilloscope` `paper-stack` `progress-circle` `radar` `split-flap` `split-flap-board` `stacked-bars-tower` `text` `thermometer` `ticker-tape` `tray` `uptime-strip` `vu-meter` |
 
-  🚨 **A widget the probe card doesn't know renders NOTHING — silently.** `ProbeLayout.vue`
-  ends its `v-else-if` chain at `ImageWidget` with no fallback, so a tile naming `flame` or
-  `odometer` produces an empty cell with no error, no warning, no log line. If a probe's
+  🚨 **A widget the probe card doesn't know renders NOTHING — silently.** The card's renderer
+  has no fallback branch, so a tile naming `flame` or `odometer` produces an empty cell with
+  no error, no warning, no log line. If a probe's
   tiles are for the board people actually look at, **stay inside the five that work in both**
   unless you specifically want a card-only widget.
 
-  The 33-name registry is `lib/plate/widgets/registry.ts` (`WIDGET_NAMES`), grouped for the
-  picker in `widgetCategories.ts`, with per-widget field specs in `schemas/<widget>.ts`.
-  `demo-widgets` exercises them — note its own description says it is for verifying the
-  **topology view** pipeline.
+  Per-widget fields are listed in `references/widgets.md`. The shipped `demo-widgets` probe
+  exercises them — note its own description says it is for verifying the **topology view**
+  pipeline, which is why most of its tiles are topology-only.
 
 ### scriptResult (for service discovery)
 

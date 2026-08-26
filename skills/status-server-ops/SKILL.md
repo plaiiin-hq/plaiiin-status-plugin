@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors.
+description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors.
 ---
 
 # Operating a Plaiiin Status server
@@ -78,26 +78,54 @@ Two independent trees exist and it matters which one you mean:
 `infrastructure.yml` declares hosts, projects, dependencies, sites, thresholds and agent
 policies — see `references/infrastructure-yml.md` for every field.
 
-**Edit it in the admin UI at `/admin/infrastructure`.** Saving there does three things in one
-call: writes the file, calls `probeScheduler.reload()` so the change is live immediately, and
-records a config-history entry. No restart, no file access, no waiting.
+Config is **fully scriptable**:
 
+```bash
+K="X-API-Key: $STATUS_API_KEY"
+
+curl -s -H "$K" "$STATUS_URL/api/infrastructure/config" > infra.json   # read
+#   … edit infra.json …
+curl -s -X POST -H "$K" -H 'Content-Type: application/json' \
+     -d @infra.json "$STATUS_URL/api/infrastructure/config"            # write
 ```
-Admin UI → Infrastructure → edit → Save
-  → "Configuration saved and reloaded"
+
+A successful write does three things in one call: saves, calls `probeScheduler.reload()` so
+the change is live immediately, and records a config-history entry. **No restart, no file
+access, no waiting.**
+
+```jsonc
+{ "status": "ok", "message": "Configuration saved and reloaded" }
 ```
 
-Requires `STATUS_ADMIN` or `INFRA_ADMIN`.
+Failures come back as real status codes — `409` if the config path is not writable, `400` if
+the save failed — with `{"error": {"code", "message"}}`. So `response.ok` means what it says
+on this endpoint.
 
-> ⚠️ **Known limitation — an API key cannot write config.** The editor's endpoints are
-> declared as `/api/config`, but the class is mapped at `/admin/infrastructure`, so the real
-> path is `/admin/infrastructure/api/config`. That does not match `/api/**`, the only prefix
-> `ApiKeyAuthFilter` is registered on — so an API key gets a **302 to the login form** rather
-> than a result. Config editing is a browser-session operation today. Probes and layouts have
-> no such limitation and are fully scriptable (below).
->
-> Saving also re-serialises the file from the object graph, which **strips every comment**.
-> Keep notes about your setup somewhere that survives a save.
+Two companions worth knowing:
+
+| Endpoint | Gives you |
+|---|---|
+| `GET /api/infrastructure/types` | The service-type catalog with param metadata — what `type:` values exist |
+| `GET /api/infrastructure/hosts` | Host names, for resolving where a probe would run |
+
+All of it requires `STATUS_ADMIN` or `INFRA_ADMIN`. Humans can equally use the admin UI at
+`/admin/infrastructure`, which drives the same endpoints.
+
+> ⚠️ **A write is a full round-trip, and the round-trip is lossy.** You `GET` the whole
+> config, edit it, and `POST` the whole thing back — and the save re-serialises from the
+> object graph. That **strips every comment**, and drops any field the model does not
+> represent. Keep notes about your setup somewhere that survives a save, and prefer editing
+> the smallest thing you can rather than round-tripping a config you did not author.
+
+> ⚠️ **The save does not validate.** It will happily accept a config in which every project
+> `ref` misses and every probe binds to a nonexistent agent, and still report `"ok"`. The
+> response tells you the write succeeded, **not** that the result works. Verify afterwards —
+> see *Verifying* at the end. This is the single most important thing to know about this
+> endpoint.
+
+> 💡 **Older deployments:** before 2026-08-27 these lived at `/admin/infrastructure/api/config`
+> and were unreachable with an API key (a routing bug returned a 302 to the login form).
+> If `/api/infrastructure/config` 404s, you are on an older build — use the admin UI.
 
 ### ⚠️ Renaming vs editing a probe
 
@@ -307,7 +335,7 @@ tree-attached logs and `scriptResult` service discovery: `references/writing-pro
 | 2 | **A project `ref` that misses resolves to an empty node** — the resolver returns null silently. You get a blank card, not an error. | Cross-check every `ref` against the live `/api/tree`. Mind the spaces around the `/` separators. |
 | 3 | **`docker-services` refs use the CONTAINER name, not `<stack>/<service>`.** The `<stack>/<service>` prefix exists only for `streamValues`, `ctx.action` and `ctx.log.ref`. | Ref them as `Agents / <host> / Docker / <containerName>`. |
 | 4 | **The server has no JS sandbox** — 7 native checkers only. Any JS catalog probe run **server-side** degrades to `HTTP_HEALTH`. An `ssl-certificate` probe will report "HTTP 200" while checking no expiry whatsoever. | Name server-side probes for what they do — "Web Reachable", not "SSL Certificate". A real cert or Docker probe needs an **agent on the box**. |
-| 5 | **A widget the probe card does not know renders NOTHING.** `ProbeLayout.vue` ends its dispatch chain at `ImageWidget` with no fallback, so a tile naming a topology-only widget (`flame`, `odometer`, `uptime-strip`, …) produces an empty cell — no error, no warning, no log line. Same for a `path` the probe never emits. | Keep board tiles inside `value` `gauge` `chart` `bar` `bars` unless you deliberately want a card-only widget. See the vocabulary table above. |
+| 5 | **A widget the probe card does not know renders NOTHING.** the card's renderer has no fallback branch, so a tile naming a topology-only widget (`flame`, `odometer`, `uptime-strip`, …) produces an empty cell — no error, no warning, no log line. Same for a `path` the probe never emits. | Keep board tiles inside `value` `gauge` `chart` `bar` `bars` unless you deliberately want a card-only widget. See the vocabulary table above. |
 | 6 | **An agent running `AGENT_READONLY=true` refuses shell.** A `SCRIPT` probe needing a shell can only ever return "requires shell access" — a permanent red. | Never ship a red that cannot go green. It trains people to ignore red, which is the only thing a status board is for. |
 
 ## Verifying — do this, every time

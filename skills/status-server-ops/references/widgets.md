@@ -3,9 +3,9 @@
 A probe's `layout:` block renders its stream paths as a grid of tiles, each naming a `widget`.
 
 > 🚨 **Read this first. There are two renderers, fed by the same `layout:` block, and they
-> accept different widget names.** A widget the probe card doesn't know renders **nothing** —
-> silently. `ProbeLayout.vue` ends its dispatch chain with no fallback, so a tile naming
-> `flame` or `odometer` produces an empty cell: no error, no warning, no log line.
+> accept different widget names.** A widget the probe card doesn't know renders **nothing**,
+> silently — the card's renderer has no fallback branch, so a tile naming `flame` or
+> `odometer` produces an empty cell: no error, no warning, no log line.
 
 | | Probe card — the board people look at | 3D topology view |
 |---|---|---|

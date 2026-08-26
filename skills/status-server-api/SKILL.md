@@ -30,6 +30,10 @@ down server. It is neither: it is the wrong path.
 
 If a call redirects to `/app/login`, check the path before you check the key.
 
+Every JSON endpoint lives under `/api/**` — that invariant holds codebase-wide as of
+2026-08-27. On older builds a few served JSON from outside it (notably the infrastructure
+config, at `/admin/infrastructure/api/config`) and were unreachable with a key.
+
 ## Reference files
 
 | File | Covers |
@@ -53,6 +57,8 @@ The tables below are the working subset; the references are authoritative.
 | `GET /api/probes/snapshot` | Current values in one shot. |
 | `GET /api/untracked-issues` | Things failing that no incident covers yet — the natural triage queue. |
 | `GET /api/types` · `GET /api/active` · `GET /api/presence` | Probe types, active checks, who is online. |
+| `GET /api/infrastructure/config` | The whole declared infrastructure — hosts, projects, dependencies, thresholds. |
+| `GET /api/infrastructure/types` · `GET /api/infrastructure/hosts` | Service-type catalog with param metadata; host names. |
 
 Probe names in the tree are **whitespace-sensitive path strings**:
 `Agents / app-01.example.com / Web Reachable`. Copy them from `/api/tree` rather than
@@ -83,6 +89,15 @@ curl -s -X POST -H "X-API-Key: $STATUS_API_KEY" -H 'Content-Type: application/js
 Severities follow the usual status-page vocabulary (`minor`, `major`, …). Prefer opening an
 incident over letting a red sit unexplained — an unexplained red is how people learn to
 ignore red.
+
+## Writing configuration
+
+`POST /api/infrastructure/config` with the full config object. It saves, reloads the scheduler
+and records a history entry in one call — `200 {"status":"ok"}`, or `409`/`400` with
+`{"error": {"code", "message"}}`. Requires `STATUS_ADMIN` or `INFRA_ADMIN`.
+
+⚠️ It does **not validate**: a config whose refs all miss saves cleanly and reports `ok`.
+Re-read `/api/tree` afterwards. Details and the round-trip caveat: `status-server-ops`.
 
 ## Probe authoring over the API
 

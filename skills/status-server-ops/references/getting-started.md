@@ -57,8 +57,7 @@ probes:
 `jira-status`, `npm-status`, `openai-status`, `reddit-status`).
 
 List what your server actually has — including any custom types — with
-`GET /api/infrastructure/types` (or `/admin/infrastructure/api/types` on servers that predate
-the routing fix).
+`GET /api/infrastructure/types`.
 
 Custom types live beside the built-ins in the config path, so a type you write once is reusable
 across every service of that kind. **Write a type before you write the same probe twice.**
@@ -90,9 +89,9 @@ An agent is required for anything that must run *on* the machine: real SSL expir
 container state, disk/CPU/memory, log tailing. A server-side JS probe silently degrades to a
 plain HTTP check (see trap 4).
 
-Installing an agent needs shell access **on that host** — see
-`Status-Agent/scripts/deploy-agent.sh` in the product distribution. You do not need shell on
-the Status server itself.
+Installing an agent needs shell access **on that host**, using the agent installer from your
+Status distribution. You do not need shell on the Status server itself — everything else in
+this guide is API or admin UI.
 
 ## 5. Turn on `agentProbes` once
 
