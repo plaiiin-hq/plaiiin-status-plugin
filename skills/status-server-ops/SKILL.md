@@ -1,21 +1,29 @@
 ---
 name: status-server-ops
-description: Use when modelling infrastructure, adding or changing probes, or designing what a probe SHOWS on a Plaiiin Status server — dashboard layout, tiles and widgets (gauge, chart, badge, uptime-strip, odometer and 28 more), project tabs, hosts, dependencies, sites/floor-plans, thresholds and agent policies. Also when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the probe catalog and check.js sandbox, the Probe IDE plate editor, applying config without dropping sessions, and five wiring mistakes that fail as SILENCE rather than as errors.
+description: Use when modelling infrastructure, adding or changing probes, or designing what a probe SHOWS on a Plaiiin Status server — dashboard layout, tiles and widgets (gauge, chart, badge, uptime-strip, odometer and 28 more), project tabs, hosts, dependencies, sites/floor-plans, thresholds and agent policies. Also when a probe reads green, empty or absent and you need to know whether it is actually running. Covers infrastructure.yml field by field, the probe catalog and check.js sandbox, the Probe IDE plate editor, and five wiring mistakes that fail as SILENCE rather than as errors.
 ---
 
 # Operating a Plaiiin Status server
 
 Status is infrastructure-first: you declare what you have, and Status works out what to
-check. This skill covers authoring that declaration and getting changes live.
+check. Everything here is done over the **API or the admin UI** — you never need shell access
+to the server, and you never restart it.
 
 > **Two rules dominate everything below.**
 >
 > 1. **Most wiring mistakes here fail as silence, not as errors.** A misrouted probe never
->    runs; a mistyped `ref` renders an empty node; a server-side JS probe silently degrades
->    to a plain HTTP check. All three look like health. **Verify, don't assume** — see
+>    runs; a mistyped `ref` renders an empty node; a layout tile whose path was never emitted
+>    is skipped without complaint. All three look like health. **Verify, don't assume** — see
 >    *Verifying* at the end, and do it every time.
-> 2. **Never restart the container to apply a config change.** It drops every logged-in
->    session and everyone has to sign in again. Use the file-watcher instead.
+> 2. **Never restart the server to apply a change.** It drops every logged-in session, and it
+>    is never necessary — saving config reloads the scheduler in the same call.
+
+## Setup
+
+```bash
+export STATUS_URL=https://status.example.com
+export STATUS_API_KEY=twk_…
+```
 
 ## Reference files
 
@@ -47,149 +55,70 @@ Dependency (third-party, no host)
 
 | Entity | What it is |
 |---|---|
-| **Project** | A business-concern grouping that becomes a tab. "Trading Platform", "Infrastructure". |
+| **Project** | A business-concern grouping that becomes a tab. |
 | **App** | A deployable unit users care about. Belongs to a project, contains services. |
-| **Host** | A machine. Has an address and optional labels (provider, location, os). Rolls up from its services, and carries host-level probes of its own (Docker, CPU, memory, disk). |
+| **Host** | A machine. Has an address and optional labels. Rolls up from its services, and carries host-level probes of its own. |
 | **Service** | A running process of an app, on a host. Status derives from its probes. |
-| **Dependency** | An external third party (GitHub, Docker Hub, Cloudflare) with a `consumers` list naming which apps degrade with it. |
+| **Dependency** | An external third party, with a `consumers` list naming which apps degrade with it. |
 | **Probe** | The actual check. `HTTP_HEALTH`, `HTTP_JSON`, `TCP_CONNECT`, `DOCKER`, `SCRIPT`, `MAPPED_JSON`. |
 
-Two independent trees exist and it matters which one you are talking about:
+Two independent trees exist and it matters which one you mean:
 
-- **`Agents / <host> / <probe name>`** — the physical tree, built from `hosts:`. This is
-  where probes actually live and where history is keyed.
-- **`projects:`** — a logical view that does **not** own anything. It `ref`s into the
-  physical tree by path string. A project tab is a set of pointers.
+- **`Agents / <host> / <probe name>`** — the physical tree, built from `hosts:`. Probes
+  actually live here and history is keyed here.
+- **`projects:`** — a logical view that owns nothing. It `ref`s into the physical tree by path
+  string. A project tab is a set of pointers.
 
-## `infrastructure.yml`
+## Changing configuration
 
-```yaml
-hosts:
-  - name: app-01.example.com
-    address: app-01.example.com
-    user: root
-    labels: { provider: acme-cloud, location: "eu-central", os: Ubuntu 22.04 }
-    probes:
-      - name: SSH                       # catalog probe, decomposed form
-        probe: tcp-port
-        host: app-01.example.com
-        port: 22
+`infrastructure.yml` declares hosts, projects, dependencies, sites, thresholds and agent
+policies — see `references/infrastructure-yml.md` for every field.
 
-      - name: Web Reachable             # catalog probe, target form
-        probe: http-endpoint
-        target: https://example.com
+**Edit it in the admin UI at `/admin/infrastructure`.** Saving there does three things in one
+call: writes the file, calls `probeScheduler.reload()` so the change is live immediately, and
+records a config-history entry. No restart, no file access, no waiting.
 
-      - name: SSL example.com
-        probe: ssl-certificate
-        target: https://example.com
-        interval: 3600                  # seconds; default is the catalog's
-
-      - name: Docker
-        probe: docker-services
-
-projects:
-  - name: Public Site
-    apps:
-      - name: Web
-        services:
-          - name: API
-            refs:
-              - Agents / app-01.example.com / Web Reachable
-              - Agents / app-01.example.com / Docker / web-api
+```
+Admin UI → Infrastructure → edit → Save
+  → "Configuration saved and reloaded"
 ```
 
-`refs` are **whitespace-sensitive path strings** into the physical tree. They are matched,
-not validated — see trap 2.
+Requires `STATUS_ADMIN` or `INFRA_ADMIN`.
 
-### Applying a change without a restart
+> ⚠️ **Known limitation — an API key cannot write config.** The editor's endpoints are
+> declared as `/api/config`, but the class is mapped at `/admin/infrastructure`, so the real
+> path is `/admin/infrastructure/api/config`. That does not match `/api/**`, the only prefix
+> `ApiKeyAuthFilter` is registered on — so an API key gets a **302 to the login form** rather
+> than a result. Config editing is a browser-session operation today. Probes and layouts have
+> no such limitation and are fully scriptable (below).
+>
+> Saving also re-serialises the file from the object graph, which **strips every comment**.
+> Keep notes about your setup somewhere that survives a save.
 
-The catalog watcher reloads infrastructure when a probe definition file is touched:
+### ⚠️ Renaming vs editing a probe
 
-```bash
-# 0. ALWAYS back up first
-ssh $HOST 'cp /status/tower-config/infrastructure.yml \
-             /status/tower-config/infrastructure.yml.bak-$(date +%Y%m%d-%H%M%S)'
-
-# 1. validate locally BEFORE copying — a broken YAML reloads as nothing
-python3 -c "import yaml,sys; yaml.safe_load(open('infrastructure.yml'))" && echo YAML-OK
-
-# 2. copy, then poke the watcher
-scp infrastructure.yml $HOST:/status/tower-config/infrastructure.yml
-ssh $HOST 'touch /status/tower-config/probes/<any-probe-id>/probe.yml'
-
-# 3. ~20s later, confirm it actually loaded
-ssh $HOST 'docker logs --since 2m status 2>&1 | grep "Infrastructure loaded"'
-```
-
-### ⚠️ The watcher cannot change a probe in place
-
-`ProbeScheduler.reload()` keys probes by id and does:
+`ProbeScheduler.reload()` keys probes by id and reuses the existing `Probe` object when the
+name is unchanged:
 
 ```java
 if (existing != null && existing.getName().equals(pc.getName())) updated.put(id, existing);
 ```
 
-It reuses the **old `Probe` object**. So a probe whose **name is unchanged while its config
-changed keeps the old config**. Editing a `target:`, a `port:` or an `interval:` in place
-does *nothing*, silently, and the board keeps showing the old check passing.
-
-**Rename the probe** and it registers fresh. Never restart just for this.
+So a probe whose **name is unchanged while its config changed keeps the old config**. Editing
+a `target:`, `port:` or `interval:` in place does nothing, silently, and the board keeps
+showing the old check passing. **Rename the probe** and it registers fresh.
 
 ### Ghost probes after a rename or delete
 
-A renamed or deleted probe lingers on the board, by design: `/api/tree` unions scheduled
-probes with history, so any name still in `historyStore.getAllLatest()` renders at its last
-value even though nothing schedules it any more. Clear it without costing anyone a session:
+A renamed or deleted probe lingers, by design: `/api/tree` unions scheduled probes with
+history, so a name still in the history store renders at its last value even though nothing
+schedules it. Clear it:
 
 ```bash
 curl -X POST -H "X-API-Key: $STATUS_API_KEY" -H 'Content-Type: application/json' \
   -d '{"items":[{"name":"Agents / app-01.example.com / Old Probe Name","type":"probe"}]}' \
   "$STATUS_URL/api/admin/storage/delete"     # -> {"deleted":1}
 ```
-
-## The probe catalog
-
-Each catalog probe is a directory under `tower-config/probes/<id>/` holding `probe.yml`
-(metadata, typed params, declared outputs, dashboard layout) and `check.js` (the check).
-~40 ship in the box: HTTP/TCP/SSL, Docker, host metrics, databases (Postgres, MySQL, Redis,
-Elasticsearch, RabbitMQ), CI (Jenkins, GitHub Actions), and a long tail of third-party
-`*-status` pages.
-
-**Param types:** `url` · `hostname` · `port` · `string` · `text` · `int` · `number` ·
-`boolean` · `select` · `duration` · `percent` · `bytes` · `timestamp` · `color` · `location` ·
-`state` · `label` · `group` · `action` · `credential`
-
-**Sandbox APIs** available to `check.js`: `ctx.http.get` · `ctx.tcp.connect` ·
-`ctx.socket.http` (Unix sockets) · `ctx.shell.run` · `ctx.exec` · `ctx.action.add` ·
-`ctx.log` · `ctx.host` · `ctx.util` · `ctx.params`
-
-**States:** `OK` · `WARNING` · `ERROR` · `UNKNOWN` — note it is `WARNING`, not `WARN`.
-
-A check returns a state, a message, and a `streamValues` map keyed by the output paths
-`probe.yml` declares:
-
-```js
-function check(ctx) {
-  var res = ctx.http.get(ctx.params.url)
-  var ok = res.ok, state = ok ? 'OK' : 'ERROR'
-  return {
-    state: state,
-    message: 'HTTP ' + res.status,
-    streamValues: {
-      '':         { state: state, value: '' + res.elapsed },  // primary — drives the row sparkline
-      statusCode: { state: state, value: '' + res.status },
-      up:         { state: state, value: ok ? '1' : '0' }
-    }
-  }
-}
-```
-
-The `''` (empty path) entry is the **primary** value and drives the inline sparkline on the
-probe row. Omit it and the row renders flat. `http-endpoint` records `responseMs`, so it is a
-genuine latency probe rather than up/down — give every public endpoint one.
-
-Full contract, including templated `{var}` paths, actions, tree-attached logs and
-`scriptResult` service discovery: `references/writing-probes.md`.
 
 ## Dashboards — designing what a probe SHOWS
 
@@ -210,7 +139,7 @@ layout:
     group: "{host}"        # bind to a {var} expansion; omit for root-level summary tiles
 ```
 
-**Three rules that decide whether a tile appears at all:**
+**Three rules decide whether a tile appears at all:**
 
 | Rule | Consequence |
 |---|---|
@@ -218,18 +147,19 @@ layout:
 | The `''` (empty) path is the **primary** value | It drives the inline sparkline on the probe row; omit it and the row renders flat |
 | `group` binds a tile to a `{var}` expansion | Each concrete instance gets its own tile grid. Root-level summary tiles must omit `group` |
 
-That skip-silently rule is deliberate — it lets one layout serve heterogeneous instances
-(colour vs white lamps, disks that report SMART vs those that don't). It also means a typo
-in `path` looks exactly like "this instance doesn't have that value".
+Skip-silently is deliberate — it lets one layout serve heterogeneous instances. It also means
+a typo in `path` looks exactly like "this instance doesn't have that value".
 
 ### Two ways to edit a layout
 
 | Route | How |
 |---|---|
-| **Probe IDE** (`/ide`) | The plate editor: pick a widget from the category strip, drop it on the grid, fill its typed fields. This is the intended path for a human. |
-| **API** | `GET /api/ide/probe-definition?id=<probe>` → edit the YAML → `POST /api/ide/probe-definition` with `{id, definition}`. `POST /api/ide/probe-save` writes `check.js`; `POST /api/ide/probe-svg` writes the infographic. Requires `STATUS_ADMIN` or `INFRA_ADMIN` — see `status-server-api`. |
+| **Probe IDE** (`/ide`) | The plate editor: pick a widget from the category strip, drop it on the grid, fill its typed fields. The intended path for a human. |
+| **API** | `GET /api/ide/probe-definition?id=<probe>` → edit the YAML → `POST /api/ide/probe-definition` with `{id, definition}`. `POST /api/ide/probe-save` writes `check.js`; `POST /api/ide/probe-svg` writes the infographic. |
 
-### The widget vocabulary, in one line each
+Both need `STATUS_ADMIN` or `INFRA_ADMIN` — see `status-server-api` for why that gate matters.
+
+### The widget vocabulary
 
 `value` `odometer` `split-flap` `split-flap-board` `delta` · `gauge` `bar` `bars`
 `progress-circle` `fluid-tank` `thermometer` `vu-meter` `stacked-bars-tower` · `chart`
@@ -249,45 +179,87 @@ For an operational board, prefer the widget that makes a bad number obvious: `ga
 discrete state. The decorative ones (`matrix-rain`, `flame`, `cake`, `orbital`) are for wall
 displays.
 
+## The probe catalog
+
+Each catalog probe is a directory holding `probe.yml` (metadata, typed params, declared
+outputs, dashboard layout) and `check.js` (the check). ~40 ship in the box: HTTP/TCP/SSL,
+Docker, host metrics, databases, CI, and a long tail of third-party `*-status` pages. List
+what is installed with `GET /api/ide/probes`.
+
+**Param types:** `url` · `hostname` · `port` · `string` · `text` · `int` · `number` ·
+`boolean` · `select` · `duration` · `percent` · `bytes` · `timestamp` · `color` · `location` ·
+`state` · `label` · `group` · `action` · `credential`
+
+**Sandbox APIs** for `check.js`: `ctx.http.get` · `ctx.tcp.connect` · `ctx.socket.http` (Unix
+sockets) · `ctx.shell.run` · `ctx.exec` · `ctx.action.add` · `ctx.log` · `ctx.host` ·
+`ctx.util` · `ctx.params`
+
+**States:** `OK` · `WARNING` · `ERROR` · `UNKNOWN` — it is `WARNING`, not `WARN`.
+
+```js
+function check(ctx) {
+  var res = ctx.http.get(ctx.params.url)
+  var ok = res.ok, state = ok ? 'OK' : 'ERROR'
+  return {
+    state: state,
+    message: 'HTTP ' + res.status,
+    streamValues: {
+      '':         { state: state, value: '' + res.elapsed },  // primary — drives the row sparkline
+      statusCode: { state: state, value: '' + res.status },
+      up:         { state: state, value: ok ? '1' : '0' }
+    }
+  }
+}
+```
+
+`http-endpoint` records `responseMs`, so it is a genuine latency probe rather than up/down —
+give every public endpoint one. Full contract, including templated `{var}` paths, actions,
+tree-attached logs and `scriptResult` service discovery: `references/writing-probes.md`.
+
+**Test before you save:** `POST /api/ide/test` runs a script server-side;
+`POST /api/ide/test-on-agent` runs it on a real agent and returns an id to poll at
+`GET /api/ide/test-on-agent/{id}`. Always do the agent one — see trap 4.
+
 ## 🚨 Five traps that fail as SILENCE
 
 | # | Trap | Rule |
 |---|---|---|
-| 1 | **Decomposed `host:`/`port:` binds the probe to an agent named after the HOST.** `InfrastructureLoader` does `pc.setAgent(pd.getAgent() != null ? pd.getAgent() : hostName)`. On a host with **no agent installed**, the probe is assigned to an agent that does not exist and simply never runs — no result, no warning, no red. | On an agentless host every probe MUST use `target:` (including `target: tcp://host:port`). That leaves the agent null, so the **server** runs it. |
-| 2 | **A project `ref` that misses resolves to an empty node.** `PathTree.resolve` returns null silently — you get a blank card, not an error. | Cross-check every `ref` against the **live** tree (`/api/tree`) before you call it done. Mind the spaces around the `/` separators. |
-| 3 | **`docker-services` refs use the CONTAINER name, not `<stack>/<service>`.** The tree is built from `scriptResult.services`, whose entries are `{ name: rawName }`. The `<stack>/<service>` prefix exists only for `streamValues`, `ctx.action` and `ctx.log.ref`. | Ref them as `Agents / <host> / Docker / <containerName>` — e.g. `Agents / app-01.example.com / Docker / web-api`. |
-| 4 | **The server has no JS sandbox** — it has 7 native checkers only (`DockerChecker`, `HttpHealthChecker`, `HttpJsonChecker`, `MappedJsonChecker`, `ScriptChecker`, `TcpConnectChecker`). Any JS catalog probe run **server-side** degrades to `HTTP_HEALTH`. An `ssl-certificate` probe will cheerfully report "HTTP 200" while checking no expiry whatsoever. | Name server-side probes for what they actually do — "Web Reachable", not "SSL Certificate". A real cert or Docker probe needs an **agent on the box**. |
-| 5 | **Agents running `AGENT_READONLY=true` refuse shell.** A `SCRIPT` probe that needs a shell (e.g. `dns-resolve`) can only ever return "requires shell access" — a permanent red. | Never ship a red that cannot go green. It trains people to ignore red, which is the only thing a status board is for. |
+| 1 | **Decomposed `host:`/`port:` binds the probe to an agent named after the HOST.** On a host with **no agent installed**, the probe is assigned to an agent that does not exist and simply never runs — no result, no warning, no red. | On an agentless host every probe MUST use `target:` (including `target: tcp://host:port`). That leaves the agent null, so the **server** runs it. |
+| 2 | **A project `ref` that misses resolves to an empty node** — the resolver returns null silently. You get a blank card, not an error. | Cross-check every `ref` against the live `/api/tree`. Mind the spaces around the `/` separators. |
+| 3 | **`docker-services` refs use the CONTAINER name, not `<stack>/<service>`.** The `<stack>/<service>` prefix exists only for `streamValues`, `ctx.action` and `ctx.log.ref`. | Ref them as `Agents / <host> / Docker / <containerName>`. |
+| 4 | **The server has no JS sandbox** — 7 native checkers only. Any JS catalog probe run **server-side** degrades to `HTTP_HEALTH`. An `ssl-certificate` probe will report "HTTP 200" while checking no expiry whatsoever. | Name server-side probes for what they do — "Web Reachable", not "SSL Certificate". A real cert or Docker probe needs an **agent on the box**. |
+| 5 | **An agent running `AGENT_READONLY=true` refuses shell.** A `SCRIPT` probe needing a shell can only ever return "requires shell access" — a permanent red. | Never ship a red that cannot go green. It trains people to ignore red, which is the only thing a status board is for. |
 
 ## Verifying — do this, every time
 
+All of it over the API. No shell, no log files.
+
 ```bash
-# 1. state transitions since the reload (no line means "unchanged")
-ssh $HOST 'docker logs --since 3m status 2>&1 | grep "state change"'
+K="X-API-Key: $STATUS_API_KEY"
 
-# 2. anything not OK
-ssh $HOST 'docker logs --since 3m status 2>&1 | grep "state change" | grep -vE "=> OK"'
+# 1. anything not OK right now
+curl -s -H "$K" "$STATUS_URL/api/status"
 
-# 3. a probe with NO history file has never run — the trap-1 signature
-ssh $HOST 'ls /var/lib/docker/volumes/status_status-data/_data/history | grep <name>'
+# 2. the authoritative tree — confirms a ref resolved and a probe exists where you think
+curl -s -H "$K" "$STATUS_URL/api/tree"
 
-# 4. best: read the real tree and confirm every ref resolved
-curl -s -H "X-API-Key: $STATUS_API_KEY" "$STATUS_URL/api/tree"
+# 3. 🚨 the trap-1 signature: a probe with NO history has NEVER run
+curl -s -H "$K" "$STATUS_URL/api/probes/history/list"
+
+# 4. recent state transitions
+curl -s -H "$K" "$STATUS_URL/api/events"
+
+# 5. one probe's series, to confirm it is producing values
+curl -s -H "$K" "$STATUS_URL/api/probes/history?probe=<name>&resolution=5s"
+
+# 6. failing things no incident covers yet — the triage queue
+curl -s -H "$K" "$STATUS_URL/api/untracked-issues"
 ```
 
-A `(agent)` in a state-change line means an agent ran it; **its absence means the server
-ran it**. That single word tells you whether trap 1 bit you.
-
-## Config stays file-based
-
-`infrastructure.yml` is not writable over the API, deliberately: `InfrastructureLoader.save()`
-re-serialises from the Jackson object graph, which erases **every comment in the file** —
-including any trap documentation you left for the next person.
-
-The cost is that file edits skip the config-history audit trail (`recordAfterWrite` only
-runs on the API path). Say so when you make one.
+Step 3 is the one people skip. A probe can appear in the tree, look configured, and have
+never executed once — that is trap 1, and the absence of a history entry is how you see it.
 
 ## See also
 
-`status-server-api` — driving a running board from Claude: reading the tree, probe history,
-incidents, and authoring probes over `/api/ide/*`.
+`status-server-api` — driving a live board: read surfaces, probe history, incidents, and the
+role gate on `/api/ide/**`.
