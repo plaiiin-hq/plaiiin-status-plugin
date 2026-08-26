@@ -26,6 +26,17 @@ export STATUS_URL=https://status.example.com
 export STATUS_API_KEY=twk_…
 ```
 
+## Ask the server what it supports
+
+```bash
+curl -s -H "X-API-Key: $STATUS_API_KEY" "$STATUS_URL/api/capabilities"
+```
+
+Returns probe types, states, param and output types, the widget lists per renderer (with the
+`both` set you should default to), tile sizes, the service-type catalog and every installed
+probe id — read from **that** server, so it beats any list in these files if they disagree.
+Do this before trusting documentation, including this skill.
+
 ## Reference files
 
 Read these on demand — they are the authoritative detail, not summaries.

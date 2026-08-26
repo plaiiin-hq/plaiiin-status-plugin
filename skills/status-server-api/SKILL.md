@@ -43,6 +43,29 @@ config, at `/admin/infrastructure/api/config`) and were unreachable with a key.
 
 The tables below are the working subset; the references are authoritative.
 
+## Start here: `GET /api/capabilities`
+
+One request returns every vocabulary you need to write a valid config, read from **this**
+server rather than from documentation that may not match it:
+
+```bash
+curl -s -H "$K" "$STATUS_URL/api/capabilities"
+```
+
+| Key | Contains |
+|---|---|
+| `probeTypes` · `probeStates` · `dataTypes` | `HTTP_HEALTH`…`MAPPED_JSON`; `OK`/`WARNING`/`ERROR`/`UNKNOWN`; history types |
+| `paramTypes` · `outputTypes` | Read from the installed catalog, so they describe what this server actually has |
+| `widgets` | `card` · `plate` · **`both`** · `cardOnly` · `plateOnly` — see the note below |
+| `tileSizes` · `panelWidthUnits` | Canonical spans; the panel is 4 units wide |
+| `serviceTypes` | Which `type:` values exist — **check here first** if a `type:` seems to do nothing |
+| `probeCatalog` | Every installed probe id |
+
+⚠️ **Use `widgets.both`** for tiles on the probe card. A widget the card cannot render
+produces an empty cell, silently — the response says so too.
+
+If this endpoint 404s you are on a build from before 2026-08-27.
+
 ## Reading state
 
 | Endpoint | Use |
