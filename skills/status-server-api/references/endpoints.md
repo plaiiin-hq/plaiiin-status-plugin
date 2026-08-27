@@ -102,7 +102,7 @@
 |--------|------|------|-------------|
 | GET | `/api/ide/list` | API Key/JWT | List all scripts |
 | GET | `/api/ide/probes` | API Key/JWT | List probes for IDE |
-| GET | `/api/ide/probe-source` | API Key/JWT | Get probe JS source |
+| GET | `/api/ide/probe-source?name=<id>` | API Key/JWT | Get probe JS source. **`name=`, not `id=`** — the wrong param 302s |
 | GET | `/api/ide/probe-definition` | API Key/JWT | Get probe YAML definition |
 | POST | `/api/ide/probe-definition` | API Key/JWT | Save probe YAML |
 | POST | `/api/ide/probe-save` | API Key/JWT | Save probe JS source |

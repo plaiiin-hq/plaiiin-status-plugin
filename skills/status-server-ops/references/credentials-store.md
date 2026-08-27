@@ -28,7 +28,13 @@ If `STATUS_CREDENTIALS_KEY` is not set, a dev-only fallback key is used with a w
 
 ## Usage in Infrastructure Config
 
-Reference credentials by name in `infrastructure.yml`:
+⚠️ **A credential is referenced as a param VALUE, never as a `credentials:` field.** There is
+no `credentials:` key on a probe — the config model has no such field, and because a save
+re-serialises from the object graph, one you write is accepted and then **silently stripped**.
+The probe then runs with no token and reports a 401, which reads as a broken credential rather
+than a dropped field.
+
+The real form is `"credential:<name>"` as the value of a param the probe declares:
 
 ```yaml
 projects:
@@ -36,13 +42,59 @@ projects:
     apps:
       - name: Acme Cloud
         services:
-          - type: custom
+          - name: API
+            type: custom
             probes:
               - name: Server Status
                 probe: http-endpoint
-                target: https://api.acme-cloud.example/v1/servers
-                credentials: acme-cloud-prod
+                agent: app-01.example.com
+                params:
+                  token: "credential:acme-cloud-prod"
 ```
+
+The same works on a host-level probe, and in `agentProbes.params` keyed by probe id:
+
+```yaml
+agentProbes:
+  params:
+    lifx:
+      token: "credential:lifx-token"
+```
+
+`params` on an inline probe needs a server build from **2026-08-27 or later**. Before that the
+only writer was `agentProbes.params`, which applies a probe to EVERY approved agent — so on an
+older build a probe that needs a secret and belongs to one host has nowhere to live.
+
+### 🔑 What the probe actually receives: the RAW secret, as a string
+
+`resolveCredentialRef` substitutes the secret itself into the param — **not** a wrapper object.
+A `check.js` that reads `ctx.params.token.token` gets `undefined` and sends no header.
+
+| Type | What lands in the param |
+|---|---|
+| `bearer` | the token string |
+| `basic` | `"username:password"` |
+| `header` | the header VALUE (the name is yours to supply) |
+| `oauth2` | the client secret |
+| `tls` | the cert PEM |
+| `ssh` | the private key |
+
+```js
+var token = ctx.params.token          // already the raw string
+if (token) headers['Authorization'] = 'Bearer ' + token
+```
+
+Accept both shapes if the probe is also driven from the IDE test runner, which passes a
+credential inline as an object:
+
+```js
+var c = ctx.params.token
+var token = typeof c === 'string' ? c : (c && c.token)
+```
+
+**The audit log will NOT show an agent read.** The server resolves the reference inline while
+building the assignment, so a working credential shows only its `create` entry. An empty log is
+not evidence the credential failed — check the probe's message instead.
 
 ## Agent Delivery
 

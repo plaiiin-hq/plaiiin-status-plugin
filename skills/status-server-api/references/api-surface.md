@@ -64,7 +64,7 @@ if they ever disagree.
 | `POST /api/ide/probe-definition` 🔒 | Save probe definition YAML |
 | `POST /api/ide/probe-dev` 🔒 | Keep old probe-dev endpoint for backward compat |
 | `POST /api/ide/probe-save` 🔒 | Save probe script (check |
-| `GET /api/ide/probe-source` 🔒 | Get script source for a probe definition by catalog ID |
+| `GET /api/ide/probe-source?name=<id>` 🔒 | Get check.js source. **Param is `name`, not `id`** — a wrong param name returns a 302, not a 400 |
 | `GET /api/ide/probe-svg` 🔒 | Get infographic SVG templates (light + dark) for a probe |
 | `POST /api/ide/probe-svg` 🔒 | Save infographic SVG templates (light + optional dark) |
 | `GET /api/ide/probes` 🔒 | List installed probe definitions from the catalog (the editable probe types, not running instances) |

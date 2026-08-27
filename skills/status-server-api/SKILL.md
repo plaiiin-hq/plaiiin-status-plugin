@@ -102,6 +102,10 @@ down server. It is neither: it is the wrong path.
 
 If a call redirects to `/app/login`, check the path before you check the key.
 
+**A 302 can also mean a wrong query-param name**, not a wrong path. `/api/ide/probe-source`
+takes `?name=<probe-id>` while its neighbour `/api/ide/probe-definition` takes `?id=<probe-id>`;
+passing `id=` to the former 302s rather than returning a 400. Check the param name too.
+
 Every JSON endpoint lives under `/api/**` — that invariant holds codebase-wide as of
 2026-08-27. On older builds a few served JSON from outside it (notably the infrastructure
 config, at `/admin/infrastructure/api/config`) and were unreachable with a key.
@@ -242,11 +246,29 @@ code on every machine the board monitors.
 > "authenticated", so *any* valid key could write executable probe scripts. Upgrade, then
 > rotate every key that existed before the upgrade.
 
-## Config is not writable over the API
+## ⚠️ What you write over the API is not durable
 
-`infrastructure.yml` cannot be written through the API by design — saving re-serialises the
-file and erases every comment in it. Edit the file, then trigger the catalog watcher. See
-`status-server-ops` → *Applying a change without a restart*.
+`POST /api/infrastructure/config` and the Probe IDE both take effect immediately — and both are
+**overwritten by the next deploy**, which ships `tower-config/infrastructure.yml` and rsyncs the
+probe folder with `--delete` from the repo. A probe that exists only in the IDE is one deploy
+from gone, and the symptom is `No script source for probe`.
+
+Iterate over the API; commit the result to the repo before anyone deploys. If a change "keeps
+reverting", look for a deploy before suspecting the server. Credentials and probe history live
+in their own SQLite databases and are NOT shipped, so those survive.
+
+## Config IS writable over the API — but the write is lossy
+
+`POST /api/infrastructure/config` saves and reloads in one call. Two costs, both silent:
+
+- **Every comment in `infrastructure.yml` is erased**, because the save re-serialises from the
+  object graph.
+- **Any field the model does not represent is dropped.** It is accepted, and gone on read-back.
+
+So verify a write by reading it back and checking your field is still there — `"ok"` means the
+write landed, not that it kept what you sent. For anything meant to last, edit the repo's
+`tower-config/infrastructure.yml` instead; see the durability warning above and
+`status-server-ops` → *Where a change actually lives*.
 
 ## MCP server — not currently distributed
 
