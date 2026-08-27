@@ -102,6 +102,23 @@ down server. It is neither: it is the wrong path.
 
 If a call redirects to `/app/login`, check the path before you check the key.
 
+### 🚨 A `302` does not always mean auth
+
+`302 → /app/login` has **three** causes, and only one is about your key:
+
+| Cause | Tell |
+|---|---|
+| Path is outside `/api/**` | Check the path first |
+| Key invalid / owner unresolvable | Body is `{"error":"Invalid API key"}` or `{"error":"User not found"}` — a 401, not a 302 |
+| **A required query parameter is missing** | The request never reaches the handler; the error dispatch redirects |
+
+That last one is the trap. `GET /api/workflows/attachable` redirects to the login page; the
+same call with `?kind=probe` returns `200`. Nothing about the response says "you forgot a
+parameter" — it looks exactly like being logged out.
+
+**Before suspecting your credentials, check the endpoint's required parameters.**
+
+
 **A 302 can also mean a wrong query-param name**, not a wrong path. `/api/ide/probe-source`
 takes `?name=<probe-id>` while its neighbour `/api/ide/probe-definition` takes `?id=<probe-id>`;
 passing `id=` to the former 302s rather than returning a 400. Check the param name too.

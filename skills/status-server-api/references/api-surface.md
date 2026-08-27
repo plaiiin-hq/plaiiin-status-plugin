@@ -149,6 +149,10 @@ Layouts are named; one is active at a time.
 Scheduled practice alerts that ask responders to acknowledge, with a leaderboard of who
 answered and how fast. `GET /api/drills/active` is what the nav badge polls.
 
+⚠️ `totalResponders` counts members of the responder role in the identity directory, so it
+reads **0** if that role has no members — producing "1 of 0 responded". If the count looks
+wrong, check role membership before suspecting the drill.
+
 | Endpoint | |
 |---|---|
 | `GET /api/drills` |  |
@@ -165,6 +169,10 @@ User-defined record types with a state machine — the system that replaced lega
 *type* declares fields, nodes (states) and edges (transitions); an *instance* is one record
 moving through it. `GET /api/workflows/types` lists what exists, `POST /api/workflows/{type}`
 creates a record, and `POST /api/workflows/{type}/{id}/transitions` moves it along an edge.
+
+⚠️ **`name` is an i18n map, not a string** — `{"en":"Incident","de":"Vorfall"}`. A client that
+renders it directly prints an object. The same applies to type and field labels throughout this
+subsystem.
 
 An edge may carry `requireFields`, `requireRole` and a `when` expression. ⚠️ `when` is a **hard
 gate** in this implementation: a transition whose condition is false is refused with
