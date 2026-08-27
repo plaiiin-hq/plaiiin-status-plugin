@@ -521,7 +521,7 @@ probes:
 | `bearer` | `token` | REST APIs |
 | `basic` | `username`, `password` | Internal services, Jenkins, databases |
 | `header` | `headerName`, `headerValue` | APIs with a custom auth header |
-| `oauth2` | `clientId`, `clientSecret`, `tokenUrl`, `scope` | Cloud APIs, enterprise SSO |
+| `oauth2` | `clientId`, `clientSecret`, `tokenUrl`, `scope` | ⚠️ **storage only — see below** |
 | `tls` | `certPem`, `keyPem`, `caPem?` | Mutual TLS / client certificates |
 | `ssh` | `privateKey`, `passphrase?`, `username` | Remote command execution |
 
@@ -536,6 +536,21 @@ Manage them in **Settings ▸ Credentials**, or over the API (needs `INFRA_ADMIN
 
 Reads return **masked** values (`eyJh****…****gIs`) — a stored secret cannot be retrieved
 through the API, only used.
+
+### ⚠️ `oauth2` is stored, not redeemed
+
+Nothing in the platform exchanges an `oauth2` credential for a token. It is injected into
+`ctx.params.credentials` exactly as stored — `{clientId, clientSecret, tokenUrl, scope}` — so a
+probe must perform the `client_credentials` exchange itself with `ctx.http.post`.
+
+That is workable but rarely wise, because **the sandbox has no state between runs**. There is
+nowhere to cache a token, so a probe on a 60s interval performs ~1,440 token exchanges a day.
+Many identity providers rate-limit or bill that, and the extra round-trip inflates
+`responseMs`, which is otherwise a genuine latency signal.
+
+**Prefer a `bearer` credential** with a token you rotate out of band, unless the token's
+lifetime is too short for that to be practical. If you do hand-roll the exchange, use a long
+`interval:` and accept the latency skew.
 
 ### Authoring a probe that takes one
 
