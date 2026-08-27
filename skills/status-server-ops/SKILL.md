@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, finding and removing abandoned history data, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors. Credentials live in ~/.plaiiin/status-server/env — read that before asking anyone for a key.
+description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, finding and removing abandoned history data, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors. Also covers the credentials store — how a probe authenticates to what it monitors. Your own API key lives in ~/.plaiiin/status-server/env; read that before asking anyone for one.
 ---
 
 # Operating a Plaiiin Status server
@@ -19,10 +19,11 @@ host being monitored — that is the one exception, and it is a one-time step pe
 > 2. **Never restart the server to apply a change.** It drops every logged-in session, and it
 >    is never necessary — saving config reloads the scheduler in the same call.
 
-## Credentials — set once, never asked again
+## API access — set once, never asked again
 
 Both skills read `~/.plaiiin/status-server/env`. Put your server and key there and no session
-needs to ask you for them:
+needs to ask you for them. (This is *your* access to the API — not to be confused with the
+**credentials store**, which holds the secrets probes use to reach the things they monitor.)
 
 ```bash
 mkdir -p ~/.plaiiin/status-server && chmod 700 ~/.plaiiin/status-server
@@ -127,7 +128,7 @@ Read these on demand — they are the authoritative detail, not summaries.
 | `references/widgets.md` | **Which widgets render where** — the probe card knows 10, the topology view 33, only 5 overlap. Fields per widget, tile spans. |
 | `references/probe-sandbox.md` | The sandbox contract and the full param-type table. |
 | `references/probes.md` | Probe kinds, local vs remote, how binding works. |
-| `references/credentials-store.md` | Credential types (`bearer`, `basic`, `header`, `oauth2`, `tls`, `ssh`) and wiring them into probes. |
+| `references/credentials-store.md` | **Probe secrets** — the six credential types, encryption, agent delivery, admin API, audit log. |
 | `references/notifications.md` | **Alerting** — Telegram bot, webhooks, routing. Read before assuming a red reaches anyone. |
 | `references/icons.md` | The icon set for hosts, apps, services and types. |
 | `references/probe-active-folder.md` · `references/probe-vs-command.md` | Active-folder mechanics; when to write a command instead of a probe. |
@@ -499,6 +500,79 @@ instead; `POST /api/admin/storage/delete` removes named ones.
 
 Cleanup requires `STATUS_ADMIN` or `INFRA_ADMIN`, and **is not reversible** — take a copy of
 the history directory first if the data might matter.
+
+## Secrets — how a probe authenticates to what it monitors
+
+Probes that check an authenticated endpoint do **not** carry the secret in `infrastructure.yml`.
+Secrets live in an encrypted credentials store and are referenced by name:
+
+```yaml
+probes:
+  - name: Server Status
+    probe: http-endpoint
+    target: https://api.example.com/v1/servers
+    credentials: acme-prod          # <- a name, never the secret
+```
+
+**Six credential types**, each strongly typed:
+
+| Type | Fields | For |
+|---|---|---|
+| `bearer` | `token` | REST APIs |
+| `basic` | `username`, `password` | Internal services, Jenkins, databases |
+| `header` | `headerName`, `headerValue` | APIs with a custom auth header |
+| `oauth2` | `clientId`, `clientSecret`, `tokenUrl`, `scope` | Cloud APIs, enterprise SSO |
+| `tls` | `certPem`, `keyPem`, `caPem?` | Mutual TLS / client certificates |
+| `ssh` | `privateKey`, `passphrase?`, `username` | Remote command execution |
+
+Manage them in **Settings ▸ Credentials**, or over the API (needs `INFRA_ADMIN`/`STATUS_ADMIN`):
+
+| | |
+|---|---|
+| `GET /api/admin/credentials` | List — **metadata only**, no secrets |
+| `POST /api/admin/credentials` | Create `{name, type, data:{…}}` |
+| `PUT`/`DELETE /api/admin/credentials/{id}` | Update / remove |
+| `GET /api/admin/credentials/{id}/log` | Who accessed it, and when |
+
+Reads return **masked** values (`eyJh****…****gIs`) — a stored secret cannot be retrieved
+through the API, only used.
+
+### Authoring a probe that takes one
+
+Declare a `credential` param and read it from `ctx`:
+
+```yaml
+params:
+  - name: credentials
+    type: credential
+    credential_type: bearer     # restricts which stored credentials are offered
+    configurable: true
+```
+
+```js
+var headers = {}
+if (ctx.params.credentials) {
+  if (ctx.params.credentials.token) {
+    headers['Authorization'] = 'Bearer ' + ctx.params.credentials.token
+  } else if (ctx.params.credentials.headerName) {
+    headers[ctx.params.credentials.headerName] = ctx.params.credentials.headerValue
+  }
+}
+var res = ctx.http.get(ctx.params.url, headers)
+```
+
+### How the secret reaches an agent
+
+The server sends only the credential **name** in the probe assignment. The agent then fetches
+the value over an Ed25519-signed request, holds it in memory with a 5-minute TTL, and **never
+writes it to disk**. Every access is recorded in the audit log.
+
+🚨 **`STATUS_CREDENTIALS_KEY` must be set in production.** It is the AES-256-GCM master key
+(PBKDF2-SHA256, 600k iterations) for the credentials database. Without it the server falls
+back to a **dev key** and merely logs a warning — meaning your stored secrets are encrypted
+with a value that is not secret. Check for `STATUS_CREDENTIALS_KEY not set` in the startup log.
+
+Full detail: `references/credentials-store.md`.
 
 ## 🚨 Six traps that fail as SILENCE
 

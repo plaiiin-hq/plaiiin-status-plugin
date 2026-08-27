@@ -1,6 +1,6 @@
 ---
 name: status-server-api
-description: Use when reading or driving a running Plaiiin Status server from Claude — checking what is currently red, reading the probe tree or a probe's history, opening/resolving/commenting on incidents, or authoring probes and their dashboard layouts (widgets, tiles) over the REST API. Covers X-API-Key auth, the /api/** boundary that makes wrong paths look like a login redirect, and the role gate on probe authoring. Credentials live in ~/.plaiiin/status-server/env — read that before asking anyone for a key.
+description: Use when reading or driving a running Plaiiin Status server from Claude — checking what is currently red, reading the probe tree or a probe's history, opening/resolving/commenting on incidents, or authoring probes and their dashboard layouts (widgets, tiles) over the REST API. Covers X-API-Key auth, the /api/** boundary that makes wrong paths look like a login redirect, and the role gate on probe authoring. Also covers the credentials store — how a probe authenticates to what it monitors. Your own API key lives in ~/.plaiiin/status-server/env; read that before asking anyone for one.
 ---
 
 # Driving a live Status board
@@ -8,10 +8,11 @@ description: Use when reading or driving a running Plaiiin Status server from Cl
 This skill is for talking to a **running** Status server. For modelling infrastructure and
 authoring probe definitions in config, see `status-server-ops`.
 
-## Credentials — set once, never asked again
+## API access — set once, never asked again
 
 Both skills read `~/.plaiiin/status-server/env`. Put your server and key there and no session
-needs to ask you for them:
+needs to ask you for them. (This is *your* access to the API — not to be confused with the
+**credentials store**, which holds the secrets probes use to reach the things they monitor.)
 
 ```bash
 mkdir -p ~/.plaiiin/status-server && chmod 700 ~/.plaiiin/status-server
