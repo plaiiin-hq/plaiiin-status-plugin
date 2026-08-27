@@ -54,6 +54,39 @@ Prefer a key minted by a non-admin account for anything ambient (dashboards, bot
 long-running assistant session). Reach for an admin key only while authoring, and revoke it
 after.
 
+
+### Scoping a key to less than yourself
+
+A key inherits its owner's roles by default. Pass `roles` to narrow it:
+
+```bash
+curl -s -X POST -H "$K" -H 'Content-Type: application/json' \
+  -d '{"name":"dashboard","roles":["VIEWER","HISTORY_USER"]}' \
+  "$STATUS_URL/api/user/api-keys"
+```
+
+Roles: `VIEWER` `HISTORY_USER` `HISTORY_CONFIG` `INCIDENT_RESPONDER` `INCIDENT_MANAGER`
+`DRILL_RESPONDER` `DRILL_MANAGER` `PROBE_EDITOR` `STATUS_ADMIN` `INFRA_ADMIN`.
+
+| Property | Behaviour |
+|---|---|
+| Omit `roles` | The key inherits everything you have — the historical default |
+| Ask for a role you lack | Refused with `roles_not_held` and the list of what you do have |
+| Owner loses a role later | Every key they minted loses it too, at the next request |
+| A scoped key mints a key | Bounded by **its own** scope, not its owner's — it cannot climb out |
+
+The intersection is computed per request rather than frozen at mint time, which is what makes
+the last two rows true.
+
+**Use this for anything ambient.** A key in a config file, a dashboard, a bot or a
+long-running assistant session should be `VIEWER` + `HISTORY_USER`, not an admin key — an
+admin key can `POST /api/ide/probe-save`, which executes JavaScript on every monitored host.
+Keep an admin key for authoring sessions and revoke it after.
+
+⚠️ Servers built before 2026-08-27 have no `roles` column; a `roles` list is ignored there and
+the key inherits everything. Check with `GET /api/user/api-keys` — scoped keys report their
+`roles`.
+
 ⚠️ **If a key returns `401 {"error":"User not found"}`**, the key itself is fine — the account
 that owns it no longer resolves in the identity directory. That happens when the directory is
 re-imported and user ids change. Mint a fresh key as a current user; revoking and re-issuing
