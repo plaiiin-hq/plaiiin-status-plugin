@@ -274,7 +274,15 @@ in the IDE is one deploy from gone. The symptom is `No script source for probe`:
 still names a probe id whose folder no longer exists.
 
 Iterate over the API, then persist the result wherever your deployment reads from. If a change
-"keeps reverting", look for a deployment before suspecting the server. Credentials and probe
+"keeps reverting", look for a deployment before suspecting the server.
+
+⛔ **Never deploy in order to apply a config or probe change.** The API already applied it live,
+without dropping a session; the repo commit only makes it survive the NEXT deploy. Deploying to
+"publish" an API change restarts the server and overwrites live config from the repo — so if the
+repo is behind, the deploy reverts the very thing you were publishing. Deploy only for server
+code, the Dockerfile or compose.
+
+Credentials and probe
 history live in their own databases and are not usually shipped, so those survive.
 
 ## Config IS writable over the API — but the write is lossy

@@ -337,6 +337,59 @@ without listing them.
 ⚠️ **A `/` inside a name must be escaped `\\/`** — an unescaped mount point like
 `/var/lib` silently becomes extra tree levels instead of one node.
 
+### 🚨 Templated paths do NOT give you one card per instance
+
+This is the decision to get right BEFORE writing the probe, because getting it wrong costs N×
+the requests and the only symptom is a bill nobody sees.
+
+| You want | Use | Result |
+|---|---|---|
+| One card **per instance** on the tab | **`scriptResult.services`** | Each entry becomes its own service node with its probes as children — a card each |
+| One card with a **group per instance** inside it | **templated `streamValues` paths** | Groups render inside the single probe's card |
+
+A templated `{var}` path is a level of the tree **inside one probe's card**. Those child nodes
+are NOT addressable from `projects:` and `/api/tree` shows only the probe node — so a project
+`ref` cannot reach them, and no amount of config splits them into cards.
+
+`scriptResult.services` is what does that, and it is not exotic: **`docker-services` uses it for
+every container.** One probe, one fetch, a node per container that a `ref` can address.
+
+```js
+return {
+  state: 'OK',
+  message: rows.length + ' cantons',
+  scriptResult: {
+    services: rows.map(r => ({
+      name: r.canton,
+      probes: [
+        { name: '7 days',  status: 'OK', message: '' + r.d7 },
+        { name: '30 days', status: 'OK', message: '' + r.d30 }
+      ]
+    }))
+  }
+}
+```
+
+Wire it with ONE service whose single probe returns the children — `StatusTree` expands them
+(`AgentController.convertScriptServices` builds the nodes):
+
+```yaml
+- name: Cantons
+  services:
+    - name: Cantons
+      type: custom
+      probes:
+        - name: Cantons
+          probe: feuerinfo-cantons
+          agent: feuerinfo.ch
+```
+
+**A real session got this wrong**, concluded from one `/api/tree` walk that per-instance cards
+were impossible, and shipped 26 probes fetching the same JSON — then filed the "missing" fan-out
+primitive as a feature request. It had been there all along, in the probe the same board was
+already running. If you are about to report that the platform cannot produce N cards from one
+fetch: it can, and this is how.
+
 ## Actions — buttons on the board
 
 A probe can attach operator actions to a stream path: Restart, Turn On, Flush Cache. They
@@ -643,6 +696,24 @@ symptom is `No script source for probe` — the config still references a probe 
 no longer exists.
 
 If a change "keeps reverting", look for a deployment before you suspect the server.
+
+### ⛔ Do NOT deploy to apply a config or probe change
+
+The API already applied it, live, without dropping a session. The repo commit is for surviving
+the **next** deploy — it is not what makes the change take effect, and deploying to "publish" it
+is both unnecessary and actively harmful:
+
+| | |
+|---|---|
+| A deploy **restarts the server** | Every logged-in session drops, and the board loses its in-memory latest-result map |
+| A deploy **overwrites live config from the repo** | If the repo is behind your API changes, the deploy silently reverts them |
+
+A session did exactly that: applied config over the API, committed an *earlier* shape to the
+repo, then ran a deploy "to publish it" — and watched the deploy copy the older repo config over
+its own live work. It then spent an hour blaming the server for "losing writes".
+
+**Deploy only for a change the API cannot express**: server code, the Dockerfile, compose. For
+`infrastructure.yml` and probes the sequence is API first, commit second, deploy never.
 
 ## Verifying — do this, every time
 
