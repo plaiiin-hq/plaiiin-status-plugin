@@ -230,6 +230,12 @@ your only option there.
 > object graph. That **strips every comment**, and drops any field the model does not
 > represent. Keep notes about your setup somewhere that survives a save, and prefer editing
 > the smallest thing you can rather than round-tripping a config you did not author.
+>
+> Servers from 2026-08-27 name the dropped fields — the response carries `ignored`, a list of
+> paths like `projects[0].apps[1].services[0].probes[0].credentials`, absent when there is
+> nothing to report. **Check it after every config write.** The field is a *report*, not a
+> refusal: those keys were still dropped. Comments are still lost either way — only
+> `/config/raw` preserves them.
 
 ### ✅ Dry-run it first
 
