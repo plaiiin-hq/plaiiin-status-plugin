@@ -202,7 +202,30 @@ Two companions worth knowing:
 All of it requires `STATUS_ADMIN` or `INFRA_ADMIN`. Humans can equally use the admin UI at
 `/admin/infrastructure`, which drives the same endpoints.
 
-> ⚠️ **A write is a full round-trip, and the round-trip is lossy.** You `GET` the whole
+### ✅ Editing without losing anything
+
+`POST /api/infrastructure/config` goes through the object model and **loses comments and any
+field the model does not know**. To make a surgical edit, use the raw path instead — what you
+send is what lands on disk:
+
+```bash
+curl -s -H "$K" "$STATUS_URL/api/infrastructure/config/raw" -o infra.yml
+#   … edit infra.yml — comments, ordering and formatting all survive …
+curl -s -X POST -H "$K" -H 'Content-Type: text/plain; charset=utf-8' \
+     --data-binary @infra.yml "$STATUS_URL/api/infrastructure/config/raw"
+```
+
+The YAML is parsed first as a guard: a body that does not parse is refused with
+`invalid_yaml` and the file is left untouched. `?dryRun=true` works here too, and the response
+carries the same `refs`/`agents`/`warnings` report.
+
+**Prefer this for any edit to a file a human wrote.** Use the object endpoint when you are
+generating a config wholesale and there is nothing to preserve.
+
+⚠️ Older builds have no `/config/raw`; a `404` means you are on one, and the object endpoint is
+your only option there.
+
+> ⚠️ **The object endpoint's write is a full round-trip, and the round-trip is lossy.** You `GET` the whole
 > config, edit it, and `POST` the whole thing back — and the save re-serialises from the
 > object graph. That **strips every comment**, and drops any field the model does not
 > represent. Keep notes about your setup somewhere that survives a save, and prefer editing
