@@ -535,11 +535,16 @@ returns `{"error":"agent and source required"}`. There, read `probe-source?name=
 hand the source straight back, and remember you are then testing a COPY: if it has drifted from
 what is deployed, you are testing the wrong artefact.
 
-⚠️ **An IDE write can return `{"status":"ok"}` and persist nothing.** During a server restart the
-write path accepts and drops. `probe-create` and `probe-definition` both returned `ok` while
-`probe-definition?id=…` read back `{"error":"Definition not found"}` — which reads exactly like
-"probe authoring is broken on this build" and is not. **Always read back after writing**, and if a
-write vanishes, check whether the server is healthy before concluding the API is a no-op.
+⚠️ **An IDE write can return `{"status":"ok"}` and persist nothing.** `probe-create` and
+`probe-definition` both returned `ok` while `probe-definition?id=…` read back
+`{"error":"Definition not found"}` — which reads exactly like "probe authoring is broken on this
+build" and is not. The server was mid-restart.
+
+Servers from 2026-08-27 answer **503 with `Retry-After`** for a write that arrives while starting
+or shutting down, so that case now names itself — retry rather than rewrite your payload. It only
+narrows the window: a server killed just after it answers still loses the write, and no server-side
+gate can know that. So the rule is unchanged — **always read back after writing**, and if a write
+vanishes, check whether the server is healthy before concluding the API is a no-op.
 
 ### 🚨 Never put a changing value in a node name
 
