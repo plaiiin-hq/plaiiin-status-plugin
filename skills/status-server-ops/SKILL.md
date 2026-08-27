@@ -526,11 +526,14 @@ tree-attached logs and `scriptResult` service discovery: `references/writing-pro
 `POST /api/ide/test-on-agent` runs it on a real agent and returns an id to poll at
 `GET /api/ide/test-on-agent/{id}`. Always do the agent one — see trap 4.
 
-⚠️ **`test-on-agent` requires the script SOURCE inline** — `{id, agent, params}` alone returns
-`{"error":"agent and source required"}`. There is no way to say "run the installed probe on that
-agent"; you must read the source and hand it straight back. Two consequences: reading
-`probe-source?name=<id>` first is a required step, not an optional one, and what you test is a
-COPY — if it has drifted from what is deployed, you are testing the wrong artefact.
+**`{agent, id}` runs the INSTALLED probe** — that is the one you usually want, because it tests
+exactly what is deployed. `{agent, source}` still runs an inline script, and wins if you send
+both, which is how you try an edit you have not saved.
+
+⚠️ **On a server older than 2026-08-27, `source` is mandatory** — `{id, agent, params}` alone
+returns `{"error":"agent and source required"}`. There, read `probe-source?name=<id>` first and
+hand the source straight back, and remember you are then testing a COPY: if it has drifted from
+what is deployed, you are testing the wrong artefact.
 
 ⚠️ **An IDE write can return `{"status":"ok"}` and persist nothing.** During a server restart the
 write path accepts and drops. `probe-create` and `probe-definition` both returned `ok` while

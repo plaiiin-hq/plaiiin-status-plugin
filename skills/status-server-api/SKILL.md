@@ -121,9 +121,15 @@ forgot a parameter" — it looks exactly like being logged out. **If you get a 3
 that old, check the endpoint's required parameters before suspecting your credentials.**
 
 
-**A 302 can also mean a wrong query-param name**, not a wrong path. `/api/ide/probe-source`
-takes `?name=<probe-id>` while its neighbour `/api/ide/probe-definition` takes `?id=<probe-id>`;
-passing `id=` to the former 302s rather than returning a 400. Check the param name too.
+**A 302 can also mean a wrong query-param name**, not a wrong path. Spring's missing-parameter
+error is an ERROR dispatch that re-enters the filter chain, so on a chain that does not permit
+that dispatch it comes back as a redirect to the login form — indistinguishable from a bad key,
+and it sends you to check credentials that were never the problem. **On any 302, check the
+endpoint's parameter names before suspecting your key.**
+
+`/api/ide/probe-source` was the worst case, taking `?name=<probe-id>` while its neighbour
+`/api/ide/probe-definition` takes `?id=`. It now accepts either spelling and answers a missing
+one with a 400 that names both; on a server older than 2026-08-27, `?id=` 302s there.
 
 Every JSON endpoint lives under `/api/**` — that invariant holds codebase-wide as of
 2026-08-27. On older builds a few served JSON from outside it (notably the infrastructure
@@ -234,7 +240,7 @@ The Probe IDE's backend is fully scriptable under `/api/ide/*`:
 | `POST /api/ide/probe-create` | New catalog probe. |
 | `POST /api/ide/probe-save` · `POST /api/ide/probe-definition` | Write `check.js` / `probe.yml`. |
 | `POST /api/ide/test` | Run a script server-side against sample params. |
-| `POST /api/ide/test-on-agent` → `GET /api/ide/test-on-agent/{id}` | Run it **on a real agent** and poll the result. Async: the POST returns an id. |
+| `POST /api/ide/test-on-agent` → `GET /api/ide/test-on-agent/{id}` | Run it **on a real agent** and poll the result. Async: the POST returns an id. `{agent, id}` runs the INSTALLED probe; `{agent, source}` runs an inline script and wins if both are sent. |
 | `GET/POST /api/ide/probe-bindings` | Which hosts a probe is bound to. |
 | `GET/POST /api/ide/probe-svg` | The probe's infographic. |
 | `GET/POST /api/ide/command-*` | The same surface for agent commands. |
