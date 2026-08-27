@@ -248,14 +248,15 @@ code on every machine the board monitors.
 
 ## ⚠️ What you write over the API is not durable
 
-`POST /api/infrastructure/config` and the Probe IDE both take effect immediately — and both are
-**overwritten by the next deploy**, which ships `tower-config/infrastructure.yml` and rsyncs the
-probe folder with `--delete` from the repo. A probe that exists only in the IDE is one deploy
-from gone, and the symptom is `No script source for probe`.
+`POST /api/infrastructure/config` and the Probe IDE both take effect immediately — and both can
+be **wiped by the next redeploy**, if your deployment ships `infrastructure.yml` and the probe
+directory. Many do, and some sync that directory with `--delete`, so a probe that exists only
+in the IDE is one deploy from gone. The symptom is `No script source for probe`: the config
+still names a probe id whose folder no longer exists.
 
-Iterate over the API; commit the result to the repo before anyone deploys. If a change "keeps
-reverting", look for a deploy before suspecting the server. Credentials and probe history live
-in their own SQLite databases and are NOT shipped, so those survive.
+Iterate over the API, then persist the result wherever your deployment reads from. If a change
+"keeps reverting", look for a deployment before suspecting the server. Credentials and probe
+history live in their own databases and are not usually shipped, so those survive.
 
 ## Config IS writable over the API — but the write is lossy
 
@@ -266,8 +267,8 @@ in their own SQLite databases and are NOT shipped, so those survive.
 - **Any field the model does not represent is dropped.** It is accepted, and gone on read-back.
 
 So verify a write by reading it back and checking your field is still there — `"ok"` means the
-write landed, not that it kept what you sent. For anything meant to last, edit the repo's
-`tower-config/infrastructure.yml` instead; see the durability warning above and
+write landed, not that it kept what you sent. For anything meant to last, edit the
+`infrastructure.yml` your deployment ships; see the durability warning above and
 `status-server-ops` → *Where a change actually lives*.
 
 ## MCP server — not currently distributed

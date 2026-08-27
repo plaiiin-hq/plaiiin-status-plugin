@@ -1,6 +1,6 @@
 ---
 name: status-server-ops
-description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, finding and removing abandoned history data, the check.js sandbox, the Probe IDE, and six wiring mistakes that fail as SILENCE rather than as errors. Also covers the credentials store — how a probe authenticates to what it monitors. Your own API key lives in ~/.plaiiin/status-server/env; read that before asking anyone for one.
+description: Use when setting up, modelling or operating a Plaiiin Status server — declaring hosts/projects/services, using SERVICE TYPES to auto-generate probes, writing custom probes and actions, and designing what a probe SHOWS: dashboard layout, tiles, widgets (gauge, chart, bar, value) and custom SVG infographics. Also for project tabs, dependencies, sites/floor-plans, thresholds, agent policies and alerting — and when a probe reads green, empty or absent and you need to know whether it is actually running. Covers reading and writing infrastructure.yml over the API, its fields one by one, finding and removing abandoned history data, the check.js sandbox, the Probe IDE, and seven wiring mistakes that fail as SILENCE rather than as errors. Also covers the credentials store — how a probe authenticates to what it monitors. Your own API key lives in ~/.plaiiin/status-server/env; read that before asking anyone for one.
 ---
 
 # Operating a Plaiiin Status server
@@ -598,27 +598,28 @@ Full detail: `references/credentials-store.md`.
 | 2 | **A project `ref` that misses resolves to an empty node** — the resolver returns null silently. You get a blank card, not an error. | Cross-check every `ref` against the live `/api/tree`. Mind the spaces around the `/` separators. |
 | 3 | **A probe's runtime children hang off the HOST, not off the probe.** `docker-services` publishes one node per container via `scriptResult.services`, and those land at `Agents / <host> / <containerName>` — **not** under the probe's own name. Refs written as `Agents / <host> / Docker / <container>` match nothing and render empty. (The `<stack>/<service>` form is a `streamValues` path, used by `ctx.action` and `ctx.log.ref` — never a ref.) | Copy the exact path from `/api/tree`. Never assemble a ref by hand from the probe name. |
 | 4 | **The server has no JS sandbox** — 7 native checkers only. Any JS catalog probe run **server-side** degrades to `HTTP_HEALTH`. An `ssl-certificate` probe will report "HTTP 200" while checking no expiry whatsoever. | Name server-side probes for what they do — "Web Reachable", not "SSL Certificate". A real cert or Docker probe needs an **agent on the box**. ⚠️ **Any HTTP target field in the config entry (`target:` OR `url:`) hands the probe to the server**, even with `agent:` set. For a CUSTOM JS probe the symptom is a hard `No script source for probe`, because the server has no copy of your script. Give the config entry only `name`/`probe`/`agent`/`params`, and put the URL in the probe.yml param's `default:` — that is what makes it run on the agent. |
-| 5 | **A widget the probe card does not know renders NOTHING.** the card's renderer has no fallback branch, so a tile naming a topology-only widget (`flame`, `odometer`, `uptime-strip`, …) produces an empty cell — no error, no warning, no log line. Same for a `path` the probe never emits. | Keep board tiles inside `value` `gauge` `chart` `bar` `bars` unless you deliberately want a card-only widget. See the vocabulary table above. |
-| 6 | **A deploy overwrites config and the probe catalog FROM THE REPO.** `deploy.sh` scp's `tower-config/infrastructure.yml` over the live one and `rsync --delete`s the probe folder. So a change made over the API or the Probe IDE survives exactly until the next deploy, then vanishes with no error — and it looks like the server "reverted" or lost your write. | Anything meant to last goes in the repo's `tower-config/` and probe folder, committed. Use the API for trying things out, the repo for keeping them. See *Where a change actually lives* below. |
+| 5 | **A widget the probe card does not know renders NOTHING.** The card's renderer has no fallback branch, so a tile naming a topology-only widget (`flame`, `odometer`, `uptime-strip`, …) produces an empty cell — no error, no warning, no log line. Same for a `path` the probe never emits. | Keep board tiles inside `value` `gauge` `chart` `bar` `bars` unless you deliberately want a card-only widget. See the vocabulary table above. |
+| 6 | **A redeploy can overwrite config and the probe catalog.** If your deployment ships `infrastructure.yml` and the probe directory — most do, and some sync the probe folder with `--delete` — then a change made over the API or in the Probe IDE survives exactly until the next deploy, then vanishes with no error. It looks like the server "reverted" or lost your write. | Find out what your deployment ships before relying on an API change. Whatever it ships is the source of truth; put lasting changes there. See *Where a change actually lives* below. |
 | 7 | **An agent running `AGENT_READONLY=true` refuses shell.** A `SCRIPT` probe needing a shell can only ever return "requires shell access" — a permanent red. | Never ship a red that cannot go green. It trains people to ignore red, which is the only thing a status board is for. |
 
 ## Where a change actually lives
 
-The API and the repo are not two views of one thing. **The repo wins, at the next deploy.**
+A live edit and a deployed file are not two views of one thing. **If your deployment ships a
+file, that file wins the moment someone deploys.**
 
-| Change | API/IDE gets it live | Survives a deploy |
+| Change | Live immediately | Survives a redeploy |
 |---|---|---|
-| `POST /api/infrastructure/config` | ✅ immediately | ❌ **overwritten** by `tower-config/infrastructure.yml` |
-| Probe authored in the IDE (`probe-save`, `probe-definition`) | ✅ immediately | ❌ **deleted** — the probe folder is rsynced with `--delete` |
-| Credential in the store | ✅ | ✅ (separate SQLite db, not shipped) |
-| Probe history | ✅ | ✅ |
+| `POST /api/infrastructure/config` | ✅ | ❌ **if** your deployment ships `infrastructure.yml` |
+| Probe authored in the IDE (`probe-save`, `probe-definition`) | ✅ | ❌ **if** it ships the probe directory — especially when synced with `--delete` |
+| Credential in the store | ✅ | ✅ — separate database, not usually shipped |
+| Probe history | ✅ | ✅ — a data volume |
 
-So the working loop is: **iterate over the API, then commit the result to the repo before
-anyone deploys.** A probe that exists only in the IDE is one deploy from gone, and the symptom
-is `No script source for probe` — the config still references a probe id whose folder no longer
-exists.
+So the working loop is: **iterate over the API, then persist the result wherever your
+deployment reads from.** A probe that exists only in the IDE is one deploy from gone, and the
+symptom is `No script source for probe` — the config still references a probe id whose folder
+no longer exists.
 
-If a change you made "keeps reverting", check for a deploy before you suspect the server.
+If a change "keeps reverting", look for a deployment before you suspect the server.
 
 ## Verifying — do this, every time
 
