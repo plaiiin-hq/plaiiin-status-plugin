@@ -112,11 +112,13 @@ If a call redirects to `/app/login`, check the path before you check the key.
 | Key invalid / owner unresolvable | Body is `{"error":"Invalid API key"}` or `{"error":"User not found"}` — a 401, not a 302 |
 | **A required query parameter is missing** | The request never reaches the handler; the error dispatch redirects |
 
-That last one is the trap. `GET /api/workflows/attachable` redirects to the login page; the
-same call with `?kind=probe` returns `200`. Nothing about the response says "you forgot a
-parameter" — it looks exactly like being logged out.
+**Fixed on builds from 2026-08-27.** A missing parameter now returns a proper
+`400 {"status":400,"error":"Bad Request","path":"…"}`.
 
-**Before suspecting your credentials, check the endpoint's required parameters.**
+On an older build it redirects instead: `GET /api/workflows/attachable` lands on the login
+page, while the same call with `?kind=probe` returns `200`. Nothing in the response says "you
+forgot a parameter" — it looks exactly like being logged out. **If you get a 302 on a server
+that old, check the endpoint's required parameters before suspecting your credentials.**
 
 
 **A 302 can also mean a wrong query-param name**, not a wrong path. `/api/ide/probe-source`
