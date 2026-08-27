@@ -133,6 +133,7 @@ Read these on demand — they are the authoritative detail, not summaries.
 | `references/icons.md` | The icon set for hosts, apps, services and types. |
 | `references/probe-active-folder.md` · `references/probe-vs-command.md` | Active-folder mechanics; when to write a command instead of a probe. |
 | `references/infrastructure-model.md` | The model in prose — hosts, host-agents, agent security, agent policies. |
+| `status-server-api` → `references/api-surface.md` | **Every endpoint** (172) grouped by area — workflows, sites, drills, agents, IAM, topology and the rest. |
 
 ## The model
 

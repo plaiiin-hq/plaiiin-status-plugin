@@ -110,7 +110,8 @@ config, at `/admin/infrastructure/api/config`) and were unreachable with a key.
 
 | File | Covers |
 |---|---|
-| `references/api-endpoints.md` | The endpoint reference — paths, params, response shapes. |
+| `references/api-surface.md` | **Every endpoint** (172), grouped by area, generated from the server source, with 🔒 marking the role-gated ones. Start here to find something. |
+| `references/api-endpoints.md` | Hand-written detail on the main endpoints — params and response shapes. |
 | `references/endpoints.md` | The wider surface, including admin and agent routes. |
 
 The tables below are the working subset; the references are authoritative.
